@@ -499,15 +499,33 @@ const Studio = () => {
             <span>BPM: {bpm}</span>
             <span>Key: {currentProject?.key || 'C Major'}</span>
             <span>{currentProject?.time_signature || '4/4'}</span>
-            <div className="flex items-center space-x-1">
-              <Users className="w-3 h-3" />
-              <span>{onlineUsers.length} collaborators</span>
-            </div>
+            
+            {/* Loading/Error States */}
+            {(effectsLoading || instrumentsLoading || samplesLoading || authLoading || projectsLoading) && (
+              <div className="flex items-center space-x-1 text-xs text-[#ff4500]">
+                <div className="w-3 h-3 border border-[#ff4500] border-t-transparent rounded-full animate-spin"></div>
+                <span>Loading...</span>
+              </div>
+            )}
+            
+            {(effectsError || instrumentsError || samplesError || projectsError) && (
+              <div className="flex items-center space-x-1 text-xs text-red-400">
+                <AlertCircle className="w-3 h-3" />
+                <span>Offline</span>
+              </div>
+            )}
+
+            {isAuthenticated && (
+              <div className="flex items-center space-x-1">
+                <Users className="w-3 h-3" />
+                <span>Online</span>
+              </div>
+            )}
           </div>
         </div>
         
         <div className="flex items-center space-x-2">
-          {!isAuthenticated && (
+          {!isAuthenticated ? (
             <Button 
               onClick={() => setShowAuthModal(true)}
               variant="ghost" 
@@ -515,8 +533,13 @@ const Studio = () => {
               className="text-gray-300 hover:text-white hover:bg-gray-700 h-8"
             >
               <LogIn className="w-4 h-4 mr-1" />
-              Login
+              Sign In
             </Button>
+          ) : (
+            <div className="flex items-center space-x-2 text-sm text-gray-300">
+              <User className="w-4 h-4" />
+              <span>{user?.display_name || user?.username}</span>
+            </div>
           )}
           
           <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-gray-700 h-8">
@@ -541,6 +564,7 @@ const Studio = () => {
             variant="ghost" 
             size="sm" 
             className="text-gray-300 hover:text-white hover:bg-gray-700 h-8"
+            disabled={!isAuthenticated || !currentProject || projectsLoading}
           >
             <Save className="w-4 h-4 mr-1" />
             Save

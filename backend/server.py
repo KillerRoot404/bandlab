@@ -215,7 +215,194 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
-# Add your routes to the router instead of directly to app
+# Authentication Helper Functions
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+def create_jwt_token(user_id: str) -> str:
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(days=30)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def verify_jwt_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload['user_id']
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    try:
+        user_id = verify_jwt_token(credentials.credentials)
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user_id
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid authentication")
+
+# Audio Processing Utilities
+def encode_audio_to_base64(audio_data: bytes) -> str:
+    return base64.b64encode(audio_data).decode('utf-8')
+
+def decode_audio_from_base64(base64_data: str) -> bytes:
+    return base64.b64decode(base64_data)
+
+# File handling utilities
+async def save_uploaded_file(file: UploadFile) -> str:
+    file_id = str(uuid.uuid4())
+    file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'wav'
+    file_path = UPLOAD_DIR / f"{file_id}.{file_extension}"
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return str(file_path)
+
+# Initialize default effects and instruments
+DEFAULT_EFFECTS = [
+    {
+        "type": "autotune",
+        "name": "Auto-Tune",
+        "parameters": [
+            {"name": "correction", "value": 50.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "speed", "value": 50.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "key", "value": 0.0, "min_value": -12.0, "max_value": 12.0}
+        ]
+    },
+    {
+        "type": "reverb",
+        "name": "Reverb",
+        "parameters": [
+            {"name": "room_size", "value": 30.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "dampening", "value": 50.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "wet_dry", "value": 30.0, "min_value": 0.0, "max_value": 100.0}
+        ]
+    },
+    {
+        "type": "delay",
+        "name": "Delay",
+        "parameters": [
+            {"name": "time", "value": 250.0, "min_value": 10.0, "max_value": 2000.0},
+            {"name": "feedback", "value": 40.0, "min_value": 0.0, "max_value": 90.0},
+            {"name": "wet_dry", "value": 25.0, "min_value": 0.0, "max_value": 100.0}
+        ]
+    },
+    {
+        "type": "compressor",
+        "name": "Compressor",
+        "parameters": [
+            {"name": "threshold", "value": -10.0, "min_value": -40.0, "max_value": 0.0},
+            {"name": "ratio", "value": 3.0, "min_value": 1.0, "max_value": 20.0},
+            {"name": "attack", "value": 3.0, "min_value": 0.1, "max_value": 100.0},
+            {"name": "release", "value": 100.0, "min_value": 10.0, "max_value": 1000.0}
+        ]
+    },
+    {
+        "type": "eq",
+        "name": "3-Band EQ",
+        "parameters": [
+            {"name": "low_gain", "value": 0.0, "min_value": -15.0, "max_value": 15.0},
+            {"name": "mid_gain", "value": 0.0, "min_value": -15.0, "max_value": 15.0},
+            {"name": "high_gain", "value": 0.0, "min_value": -15.0, "max_value": 15.0}
+        ]
+    },
+    {
+        "type": "chorus",
+        "name": "Chorus",
+        "parameters": [
+            {"name": "rate", "value": 1.0, "min_value": 0.1, "max_value": 10.0},
+            {"name": "depth", "value": 50.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "wet_dry", "value": 50.0, "min_value": 0.0, "max_value": 100.0}
+        ]
+    },
+    {
+        "type": "distortion",
+        "name": "Distortion",
+        "parameters": [
+            {"name": "drive", "value": 30.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "tone", "value": 50.0, "min_value": 0.0, "max_value": 100.0},
+            {"name": "level", "value": 75.0, "min_value": 0.0, "max_value": 100.0}
+        ]
+    }
+]
+
+DEFAULT_INSTRUMENTS = [
+    {
+        "name": "Grand Piano",
+        "type": "piano",
+        "category": "Piano",
+        "presets": [
+            {"name": "Bright Piano", "parameters": {"brightness": 80, "sustain": 60}},
+            {"name": "Warm Piano", "parameters": {"brightness": 40, "sustain": 80}}
+        ]
+    },
+    {
+        "name": "Analog Synth",
+        "type": "synth",
+        "category": "Synthesizer",
+        "presets": [
+            {"name": "Lead Synth", "parameters": {"cutoff": 70, "resonance": 30, "envelope": 50}},
+            {"name": "Pad Synth", "parameters": {"cutoff": 40, "resonance": 10, "envelope": 80}}
+        ]
+    },
+    {
+        "name": "Drum Kit",
+        "type": "drums",
+        "category": "Percussion",
+        "presets": [
+            {"name": "Rock Kit", "parameters": {"kick_punch": 80, "snare_crack": 70}},
+            {"name": "Electronic Kit", "parameters": {"kick_punch": 60, "snare_crack": 90}}
+        ]
+    },
+    {
+        "name": "Electric Bass",
+        "type": "bass",
+        "category": "Bass",
+        "presets": [
+            {"name": "Finger Bass", "parameters": {"tone": 60, "attack": 40}},
+            {"name": "Slap Bass", "parameters": {"tone": 80, "attack": 90}}
+        ]
+    }
+]
+
+DEFAULT_SAMPLE_PACKS = [
+    {
+        "name": "Hip Hop Essentials",
+        "description": "Essential hip hop drums and samples",
+        "genre": "Hip Hop",
+        "bpm": 90,
+        "samples_count": 25
+    },
+    {
+        "name": "Electronic Vibes",
+        "description": "Modern electronic sounds and loops",
+        "genre": "Electronic",
+        "bpm": 128,
+        "samples_count": 30
+    },
+    {
+        "name": "Lo-Fi Chill",
+        "description": "Chill lo-fi beats and textures",
+        "genre": "Lo-Fi",
+        "bpm": 85,
+        "samples_count": 20
+    },
+    {
+        "name": "Trap Beats",
+        "description": "Hard-hitting trap drums",
+        "genre": "Trap",
+        "bpm": 140,
+        "samples_count": 15
+    }
+]
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}

@@ -13,9 +13,10 @@ const Timeline = ({
   getTrackClips,
   deleteClip,
   moveClip,
-  generateWaveform 
+  generateWaveform,
+  isMobile = false
 }) => {
-  const [zoomLevel, setZoomLevel] = useState(50); // pixels per second
+  const [zoomLevel, setZoomLevel] = useState(isMobile ? 30 : 50); // pixels per second
   const [selectedClip, setSelectedClip] = useState(null);
   const [viewportStart, setViewportStart] = useState(0);
   const timelineRef = useRef(null);
@@ -34,11 +35,11 @@ const Timeline = ({
   };
 
   const handleZoomIn = () => {
-    setZoomLevel(Math.min(200, zoomLevel + 10));
+    setZoomLevel(Math.min(200, zoomLevel + (isMobile ? 5 : 10)));
   };
 
   const handleZoomOut = () => {
-    setZoomLevel(Math.max(20, zoomLevel - 10));
+    setZoomLevel(Math.max(isMobile ? 15 : 20, zoomLevel - (isMobile ? 5 : 10)));
   };
 
   const formatTime = (seconds) => {
@@ -48,130 +49,141 @@ const Timeline = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#1a1a1b]">
+    <div className={`flex-1 bg-[#1a1a1b] flex flex-col overflow-hidden ${isMobile ? 'h-full' : ''}`}>
       {/* Timeline Header */}
-      <div className="bg-[#242529] border-b border-gray-800 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-300">Timeline</span>
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleZoomOut}
-              className="text-gray-400 hover:text-white w-8 h-8 p-0"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </Button>
-            <span className="text-xs text-gray-400 w-16 text-center">{zoomLevel}px/s</span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleZoomIn}
-              className="text-gray-400 hover:text-white w-8 h-8 p-0"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white w-8 h-8 p-0">
-              <Grid3X3 className="w-4 h-4" />
-            </Button>
-          </div>
+      <div className="bg-[#242529] border-b border-gray-800 p-2 sm:p-3 flex items-center justify-between">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <h3 className="text-sm font-medium text-gray-300">TIMELINE</h3>
+          <Button
+            onClick={handleZoomOut}
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 p-0"
+          >
+            <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
+          </Button>
+          <span className="text-xs text-gray-500">{Math.round(zoomLevel)}px/s</span>
+          <Button
+            onClick={handleZoomIn}
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 p-0"
+          >
+            <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
+          </Button>
         </div>
         
-        {/* Time Ruler */}
-        <div 
-          className="relative h-8 bg-[#2a2a2e] rounded overflow-hidden border border-gray-700 cursor-pointer"
-          onClick={handleTimelineClick}
-          ref={timelineRef}
-        >
-          {/* Timeline markers */}
-          <div className="absolute inset-0">
-            {Array.from({ length: Math.ceil(timelineDuration / 4) + 1 }).map((_, i) => {
-              const time = i * 4;
-              const left = time * pixelsPerSecond;
-              
-              return (
-                <div
-                  key={i}
-                  className="absolute top-0 h-full border-l border-gray-600 flex items-center justify-start pl-1"
-                  style={{ left: `${left}px` }}
-                >
-                  <span className="text-xs text-gray-500">{formatTime(time)}</span>
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white w-6 h-6 sm:w-8 sm:h-8 p-0"
+          >
+            <Grid3X3 className="w-3 h-3 sm:w-4 sm:h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Timeline Ruler */}
+      <div className="bg-[#2a2a2e] border-b border-gray-800 relative overflow-x-auto">
+        <div className="h-6 sm:h-8 relative" style={{ width: `${totalWidth}px` }}>
+          {/* Time markers */}
+          {Array.from({ length: Math.ceil(timelineDuration / 5) + 1 }, (_, i) => i * 5).map((second) => (
+            <div
+              key={second}
+              className="absolute top-0 bottom-0 border-l border-gray-600 flex items-center"
+              style={{ left: `${second * pixelsPerSecond}px` }}
+            >
+              <span className="text-xs text-gray-400 ml-1 select-none">
+                {formatTime(second)}
+              </span>
+            </div>
+          ))}
           
-          {/* Playhead */}
+          {/* Beat markers (every second) */}
+          {Array.from({ length: timelineDuration + 1 }, (_, i) => i).map((second) => (
+            <div
+              key={`beat-${second}`}
+              className="absolute top-0 bottom-0 border-l border-gray-700 opacity-50"
+              style={{ left: `${second * pixelsPerSecond}px` }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Timeline Content */}
+      <div className="flex-1 overflow-auto">
+        <div className="relative" style={{ width: `${totalWidth}px` }}>
+          {/* Timeline background */}
           <div 
-            className="absolute top-0 w-0.5 h-full bg-[#ff4500] z-20 pointer-events-none"
-            style={{ left: `${currentTime * pixelsPerSecond}px` }}
-          />
-          
-          {/* Loop regions, markers, etc. can be added here */}
-        </div>
-      </div>
-      
-      {/* Track Timeline */}
-      <div className="flex-1 overflow-y-auto" data-timeline>
-        <div 
-          className="relative"
-          style={{ width: `${totalWidth}px`, minHeight: '100%' }}
-        >
-          {tracks.map((track, index) => {
-            const trackClips = getTrackClips ? getTrackClips(track.id) : [];
-            
-            return (
-              <div 
-                key={track.id}
-                className={`h-16 border-b border-gray-800 flex items-center px-3 relative ${
-                  selectedTrack === track.id ? 'bg-[#242529]/50' : 'hover:bg-[#242529]/30'
-                }`}
-                onClick={() => onTrackSelect && onTrackSelect(track.id)}
-              >
-                {/* Track lane background */}
-                <div className="absolute inset-0 left-0 right-0">
-                  <div className="h-full bg-[#2a2a2e] border border-gray-700 relative overflow-visible">
-                    {/* Grid lines */}
-                    {Array.from({ length: Math.ceil(timelineDuration / 4) }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="absolute top-0 w-px h-full bg-gray-700/50"
-                        style={{ left: `${i * 4 * pixelsPerSecond}px` }}
-                      />
-                    ))}
-                    
-                    {/* Audio clips */}
-                    {trackClips.map((clip) => (
-                      <AudioClip
-                        key={clip.id}
-                        clip={clip}
-                        trackColor={track.color}
-                        pixelsPerSecond={pixelsPerSecond}
-                        onMove={moveClip}
-                        onDelete={deleteClip}
-                        onSelect={setSelectedClip}
-                        isSelected={selectedClip === clip.id}
-                        generateWaveform={generateWaveform}
-                      />
-                    ))}
-                    
-                    {/* Recording indicator */}
-                    {track.isRecording && (
-                      <div 
-                        className="absolute h-full bg-red-500/20 border-2 border-red-500 animate-pulse"
-                        style={{
-                          left: `${currentTime * pixelsPerSecond}px`,
-                          width: '4px'
-                        }}
-                      />
-                    )}
-                  </div>
+            ref={timelineRef}
+            className="absolute inset-0 cursor-pointer"
+            onClick={handleTimelineClick}
+          >
+            {/* Grid lines */}
+            {Array.from({ length: timelineDuration + 1 }, (_, i) => i).map((second) => (
+              <div
+                key={`grid-${second}`}
+                className="absolute top-0 bottom-0 border-l border-gray-800 opacity-30"
+                style={{ left: `${second * pixelsPerSecond}px` }}
+              />
+            ))}
+          </div>
+
+          {/* Tracks */}
+          {tracks.map((track, trackIndex) => (
+            <div
+              key={track.id}
+              className={`relative border-b border-gray-800 ${
+                selectedTrack === track.id ? 'bg-[#2a2a2e]/50' : 'hover:bg-[#2a2a2e]/30'
+              }`}
+              style={{ height: isMobile ? '80px' : '60px' }}
+              onClick={() => onTrackSelect && onTrackSelect(track.id)}
+            >
+              {/* Track label - Mobile optimized */}
+              {isMobile && (
+                <div className="absolute left-0 top-0 bottom-0 w-20 bg-[#242529] border-r border-gray-800 flex flex-col justify-center px-2 z-10">
+                  <div className="text-xs text-white font-medium truncate">{track.name}</div>
+                  <div className="text-xs text-gray-400 truncate">{track.instrument}</div>
                 </div>
+              )}
+              
+              {/* Track clips */}
+              <div className={`absolute inset-0 ${isMobile ? 'ml-20' : ''}`}>
+                {getTrackClips && getTrackClips(track.id).map((clip) => (
+                  <AudioClip
+                    key={clip.id}
+                    clip={clip}
+                    pixelsPerSecond={pixelsPerSecond}
+                    trackHeight={isMobile ? 80 : 60}
+                    isSelected={selectedClip === clip.id}
+                    onSelect={setSelectedClip}
+                    onDelete={() => deleteClip && deleteClip(clip.id)}
+                    onMove={(newStartTime) => moveClip && moveClip(clip.id, newStartTime)}
+                    generateWaveform={generateWaveform}
+                    isMobile={isMobile}
+                  />
+                ))}
               </div>
-            );
-          })}
+            </div>
+          ))}
+
+          {/* Playhead */}
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-[#ff4500] z-20 pointer-events-none"
+            style={{ left: `${currentTime * pixelsPerSecond}px` }}
+          >
+            <div className="w-3 h-3 bg-[#ff4500] rounded-full -ml-1 -mt-1" />
+          </div>
         </div>
       </div>
+
+      {/* Timeline Footer - Mobile info */}
+      {isMobile && (
+        <div className="bg-[#242529] border-t border-gray-800 p-2 text-xs text-gray-400 text-center">
+          Pinch to zoom • Drag to scroll • Tap clip to select
+        </div>
+      )}
     </div>
   );
 };

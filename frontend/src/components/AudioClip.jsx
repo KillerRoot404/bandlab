@@ -1,140 +1,205 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Trash2, Volume2, Copy } from 'lucide-react';
+import { Trash2, Volume2, MoreHorizontal } from 'lucide-react';
 
 const AudioClip = ({ 
   clip, 
-  trackColor, 
-  pixelsPerSecond = 50, 
-  onMove, 
-  onDelete, 
+  pixelsPerSecond, 
+  trackHeight, 
+  isSelected, 
   onSelect, 
-  isSelected,
-  generateWaveform 
+  onDelete, 
+  onMove,
+  generateWaveform,
+  isMobile = false
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
+  const [dragStart, setDragStart] = useState({ x: 0, time: 0 });
   const [waveformData, setWaveformData] = useState([]);
   const clipRef = useRef(null);
 
-  const clipWidth = clip.duration * pixelsPerSecond;
-  const clipLeft = clip.startTime * pixelsPerSecond;
+  const clipWidth = (clip.duration || 3) * pixelsPerSecond;
+  const clipLeft = (clip.start_time || 0) * pixelsPerSecond;
 
-  // Generate waveform on mount
+  // Generate waveform data
   useEffect(() => {
-    if (clip.buffer && generateWaveform) {
-      const waveform = generateWaveform(clip.buffer, Math.floor(clipWidth / 2));
+    if (generateWaveform && clip.audio_data) {
+      const waveform = generateWaveform(clip.audio_data);
       setWaveformData(waveform);
+    } else {
+      // Generate fake waveform for demo
+      const fakeWaveform = Array.from({ length: 50 }, () => Math.random() * 0.8 + 0.1);
+      setWaveformData(fakeWaveform);
     }
-  }, [clip.buffer, clipWidth, generateWaveform]);
+  }, [clip, generateWaveform]);
 
   const handleMouseDown = (e) => {
+    if (isMobile) return; // Use touch events on mobile
+    
     e.preventDefault();
-    e.stopPropagation();
-    
-    if (onSelect) {
-      onSelect(clip.id);
-    }
-    
     setIsDragging(true);
-    const rect = clipRef.current.getBoundingClientRect();
-    setDragOffset(e.clientX - rect.left);
+    setDragStart({ 
+      x: e.clientX, 
+      time: clip.start_time || 0 
+    });
+    onSelect && onSelect(clip.id);
+  };
+
+  const handleTouchStart = (e) => {
+    if (!isMobile) return;
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    e.preventDefault();
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ 
+      x: touch.clientX, 
+      time: clip.start_time || 0 
+    });
+    onSelect && onSelect(clip.id);
   };
 
   const handleMouseMove = (e) => {
-    if (!isDragging || !onMove) return;
+    if (!isDragging || isMobile) return;
     
-    const timeline = clipRef.current.closest('[data-timeline]');
-    if (!timeline) return;
+    const deltaX = e.clientX - dragStart.x;
+    const deltaTime = deltaX / pixelsPerSecond;
+    const newStartTime = Math.max(0, dragStart.time + deltaTime);
     
-    const timelineRect = timeline.getBoundingClientRect();
-    const newLeft = e.clientX - timelineRect.left - dragOffset;
-    const newStartTime = Math.max(0, newLeft / pixelsPerSecond);
+    if (onMove) {
+      onMove(newStartTime);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || !isMobile) return;
     
-    // Snap to grid (0.25 second intervals)
-    const snappedTime = Math.round(newStartTime * 4) / 4;
-    onMove(clip.id, snappedTime);
+    e.preventDefault();
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - dragStart.x;
+    const deltaTime = deltaX / pixelsPerSecond;
+    const newStartTime = Math.max(0, dragStart.time + deltaTime);
+    
+    if (onMove) {
+      onMove(newStartTime);
+    }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
   };
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    if (onDelete) {
-      onDelete(clip.id);
-    }
+  const handleTouchEnd = () => {
+    setIsDragging(false);
   };
+
+  useEffect(() => {
+    if (isDragging) {
+      if (isMobile) {
+        document.addEventListener('touchmove', handleTouchMove);
+        document.addEventListener('touchend', handleTouchEnd);
+        return () => {
+          document.removeEventListener('touchmove', handleTouchMove);
+          document.removeEventListener('touchend', handleTouchEnd);
+        };
+      } else {
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+      }
+    }
+  }, [isDragging, dragStart, isMobile]);
 
   return (
     <div
       ref={clipRef}
-      className={`absolute h-full rounded border-2 flex items-center px-2 cursor-move select-none transition-all ${
-        isSelected ? 'border-orange-500 shadow-lg' : 'border-gray-600 hover:border-gray-500'
-      } ${isDragging ? 'opacity-80 z-50' : 'hover:brightness-110'}`}
+      className={`absolute bg-gradient-to-r from-blue-600 to-blue-500 rounded border cursor-move transition-all select-none ${
+        isSelected 
+          ? 'border-[#ff4500] shadow-lg ring-1 ring-[#ff4500]' 
+          : 'border-blue-400 hover:border-blue-300'
+      } ${isDragging ? 'opacity-80' : ''}`}
       style={{
-        backgroundColor: trackColor + '60',
-        borderColor: isSelected ? '#f97316' : trackColor,
         left: `${clipLeft}px`,
         width: `${clipWidth}px`,
-        minWidth: '40px'
+        height: `${trackHeight - (isMobile ? 16 : 8)}px`,
+        top: `${isMobile ? 8 : 4}px`,
+        minWidth: isMobile ? '60px' : '40px'
       }}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
     >
-      {/* Clip Name */}
-      <span className="text-xs text-white font-medium truncate pointer-events-none">
-        {clip.name}
-      </span>
-      
-      {/* Waveform Visualization */}
-      <div className="absolute inset-0 overflow-hidden p-1 pointer-events-none">
-        <div className="flex items-center h-full opacity-40">
-          {waveformData.map((amplitude, i) => (
-            <div
-              key={i}
-              className="w-px bg-white mx-px"
-              style={{ height: `${Math.max(2, amplitude * 80)}%` }}
-            />
-          ))}
+      {/* Clip Content */}
+      <div className="relative h-full overflow-hidden rounded">
+        {/* Waveform Background */}
+        <div className="absolute inset-0 flex items-center px-1">
+          <div className="flex items-center justify-center w-full h-full">
+            {waveformData.slice(0, Math.floor(clipWidth / 4)).map((amplitude, i) => (
+              <div
+                key={i}
+                className="bg-white/30 mx-px"
+                style={{
+                  height: `${amplitude * 100}%`,
+                  width: `${Math.max(1, 4 - 1)}px`
+                }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
-      
-      {/* Duration indicator */}
-      <div className="absolute top-1 right-1 text-xs text-white/70 bg-black/30 px-1 rounded pointer-events-none">
-        {clip.duration.toFixed(1)}s
-      </div>
-      
-      {/* Resize handles */}
-      <div className="absolute left-0 top-0 w-1 h-full bg-white/20 cursor-ew-resize opacity-0 hover:opacity-100" />
-      <div className="absolute right-0 top-0 w-1 h-full bg-white/20 cursor-ew-resize opacity-0 hover:opacity-100" />
-      
-      {/* Controls (show on hover/select) */}
-      {(isSelected || isDragging) && (
-        <div className="absolute -top-8 right-0 flex items-center space-x-1 bg-gray-800 border border-gray-600 rounded px-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-6 h-6 p-0 text-gray-300 hover:text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Copy className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-6 h-6 p-0 text-gray-300 hover:text-red-400"
-            onClick={handleDelete}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
+
+        {/* Clip Info */}
+        <div className="absolute inset-0 p-1 flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className={`text-white font-medium truncate ${
+                isMobile ? 'text-xs' : 'text-sm'
+              }`}>
+                {clip.name}
+              </div>
+              {!isMobile && (
+                <div className="text-xs text-blue-100 opacity-75 truncate">
+                  {Math.round((clip.duration || 3) * 10) / 10}s
+                </div>
+              )}
+            </div>
+            
+            {/* Clip Controls */}
+            {(isSelected || isMobile) && (
+              <div className="flex items-center space-x-1 ml-1">
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete && onDelete();
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className={`text-white hover:text-red-400 hover:bg-red-600/20 ${
+                    isMobile ? 'w-5 h-5 p-0' : 'w-4 h-4 p-0'
+                  }`}
+                >
+                  <Trash2 className={isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'} />
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          {/* Mobile Duration Display */}
+          {isMobile && (
+            <div className="text-xs text-blue-100 opacity-75">
+              {Math.round((clip.duration || 3) * 10) / 10}s
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Resize Handles */}
+        {isSelected && !isMobile && (
+          <>
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#ff4500] cursor-ew-resize" />
+            <div className="absolute right-0 top-0 bottom-0 w-1 bg-[#ff4500] cursor-ew-resize" />
+          </>
+        )}
+      </div>
     </div>
   );
 };

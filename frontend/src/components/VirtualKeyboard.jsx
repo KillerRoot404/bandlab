@@ -1,58 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Slider } from './ui/slider';
-import { Piano, Volume2, Settings } from 'lucide-react';
-import { useVirtualInstruments } from '../hooks/useVirtualInstruments';
 
-const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument }) => {
-  const { availableInstruments } = useVirtualInstruments();
-
-  const [selectedPreset, setSelectedPreset] = useState(null);
-  const [velocity, setVelocity] = useState([100]);
-  const [activeKeys, setActiveKeys] = useState(new Set());
+const VirtualKeyboard = ({ 
+  onNotePlay, 
+  onNoteStop, 
+  keyboardMap = {}, 
+  activeInstrument = 'grand_piano',
+  isMobile = false
+}) => {
+  const [pressedKeys, setPressedKeys] = useState(new Set());
   const [octave, setOctave] = useState(4);
-  
+
+  // Piano key layout
   const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-  const blackKeys = ['C#', 'D#', 'F#', 'G#', 'A#'];
+  const blackKeys = ['C#', 'D#', '', 'F#', 'G#', 'A#', ''];
   
-  const instrument = availableInstruments.find(inst => inst.id === activeInstrument) || availableInstruments[0];
-
-  useEffect(() => {
-    if (instrument && instrument.presets.length > 0 && !selectedPreset) {
-      setSelectedPreset(instrument.presets[0]);
+  const totalOctaves = isMobile ? 2 : 3;
+  const startOctave = octave - (isMobile ? 1 : 1);
+  
+  const handleNotePlay = (note, velocity = 100) => {
+    if (onNotePlay && !pressedKeys.has(note)) {
+      setPressedKeys(prev => new Set([...prev, note]));
+      onNotePlay(note, velocity);
     }
-  }, [instrument, selectedPreset]);
+  };
 
+  const handleNoteStop = (note) => {
+    if (onNoteStop) {
+      setPressedKeys(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(note);
+        return newSet;
+      });
+      onNoteStop(note);
+    }
+  };
+
+  // Computer keyboard mapping
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.repeat || !keyboardMap[event.code]) return;
-      
-      const midiNote = keyboardMap[event.code] + (octave - 4) * 12;
-      if (midiNote >= 0 && midiNote <= 127) {
-        if (onNotePlay) {
-          const noteKey = onNotePlay(midiNote, velocity[0], selectedPreset);
-          if (noteKey) {
-            setActiveKeys(prev => new Set(prev).add(event.code));
-          }
-        }
-      }
+    const handleKeyDown = (e) => {
+      if (!keyboardMap[e.code] || pressedKeys.has(keyboardMap[e.code])) return;
+      e.preventDefault();
+      handleNotePlay(keyboardMap[e.code]);
     };
 
-    const handleKeyUp = (event) => {
-      if (keyboardMap[event.code]) {
-        const midiNote = keyboardMap[event.code] + (octave - 4) * 12;
-        const noteKey = `${instrument.id}-${midiNote}`;
-        if (onNoteStop) {
-          onNoteStop(noteKey);
-        }
-        setActiveKeys(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(event.code);
-          return newSet;
-        });
-      }
+    const handleKeyUp = (e) => {
+      if (!keyboardMap[e.code]) return;
+      e.preventDefault();
+      handleNoteStop(keyboardMap[e.code]);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -62,216 +57,162 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [instrument, selectedPreset, velocity, octave, onNotePlay, onNoteStop, keyboardMap]);
+  }, [keyboardMap, pressedKeys, onNotePlay, onNoteStop]);
 
-  const handleMouseDown = (note) => {
-    const midiNote = getMidiNote(note, octave);
-    if (midiNote >= 0 && midiNote <= 127 && onNotePlay) {
-      const noteKey = onNotePlay(midiNote, velocity[0], selectedPreset);
-      if (noteKey) {
-        setActiveKeys(prev => new Set(prev).add(note));
-      }
-    }
-  };
-
-  const handleMouseUp = (note) => {
-    const midiNote = getMidiNote(note, octave);
-    const noteKey = `${instrument.id}-${midiNote}`;
-    if (onNoteStop) {
-      onNoteStop(noteKey);
-    }
-    setActiveKeys(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(note);
-      return newSet;
-    });
-  };
-
-  const getMidiNote = (note, octave) => {
-    const noteMap = {
-      'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
-      'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11
-    };
-    return (octave + 1) * 12 + noteMap[note];
-  };
-
-  const isBlackKey = (note) => blackKeys.includes(note);
-  
-  const getKeyPosition = (note, index) => {
-    if (isBlackKey(note)) {
-      // Black keys positioning
-      const positions = { 'C#': 8.5, 'D#': 25.5, 'F#': 59.5, 'G#': 76.5, 'A#': 93.5 };
-      return positions[note] || 0;
-    } else {
-      // White keys positioning  
-      return index * 17;
-    }
+  const changeOctave = (direction) => {
+    setOctave(prev => Math.max(1, Math.min(7, prev + direction)));
   };
 
   return (
-    <Card className="bg-[#242529] border-gray-700 p-4">
-      <div className="space-y-4">
-        {/* Instrument Controls */}
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Piano className="w-4 h-4 text-[#ff4500]" />
-            <span className="text-sm text-gray-300">Instrument:</span>
-          </div>
-          
-          <Select 
-            value={instrument.id} 
-            disabled
+    <div className={`bg-[#242529] border-gray-800 ${isMobile ? 'p-2' : 'p-4'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-2">
+          <h4 className={`font-medium text-gray-300 ${isMobile ? 'text-sm' : 'text-base'}`}>
+            Virtual Keyboard
+          </h4>
+          <span className={`text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+            ({activeInstrument})
+          </span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={() => changeOctave(-1)}
+            variant="ghost"
+            size="sm"
+            className={`text-gray-400 hover:text-white ${isMobile ? 'w-6 h-6 p-0' : 'w-8 h-8 p-0'}`}
+            disabled={octave <= 1}
           >
-            <SelectTrigger className="w-40 bg-[#2a2a2e] border-gray-600 text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#2a2a2e] border-gray-600">
-              {availableInstruments.map((inst) => (
-                <SelectItem key={inst.id} value={inst.id} className="text-white hover:bg-[#333338]">
-                  {inst.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select 
-            value={selectedPreset?.id || ''} 
-            onValueChange={(presetId) => {
-              const preset = instrument.presets.find(p => p.id === presetId);
-              setSelectedPreset(preset);
-            }}
+            -
+          </Button>
+          <span className={`text-gray-300 ${isMobile ? 'text-sm' : 'text-base'} min-w-16 text-center`}>
+            Octave {octave}
+          </span>
+          <Button
+            onClick={() => changeOctave(1)}
+            variant="ghost"
+            size="sm"
+            className={`text-gray-400 hover:text-white ${isMobile ? 'w-6 h-6 p-0' : 'w-8 h-8 p-0'}`}
+            disabled={octave >= 7}
           >
-            <SelectTrigger className="w-40 bg-[#2a2a2e] border-gray-600 text-white">
-              <SelectValue placeholder="Select preset" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#2a2a2e] border-gray-600">
-              {instrument.presets.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id} className="text-white hover:bg-[#333338]">
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            +
+          </Button>
         </div>
-
-        {/* Performance Controls */}
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2">
-            <Volume2 className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-400">Velocity:</span>
-            <div className="w-20">
-              <Slider
-                value={velocity}
-                onValueChange={setVelocity}
-                min={1}
-                max={127}
-                step={1}
-              />
-            </div>
-            <span className="text-xs text-gray-400 w-8">{velocity[0]}</span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-400">Octave:</span>
-            <Button
-              onClick={() => setOctave(Math.max(0, octave - 1))}
-              size="sm"
-              variant="ghost"
-              className="w-6 h-6 p-0 text-gray-400 hover:text-white"
-            >
-              -
-            </Button>
-            <span className="text-sm text-white w-4 text-center">{octave}</span>
-            <Button
-              onClick={() => setOctave(Math.min(8, octave + 1))}
-              size="sm"
-              variant="ghost"
-              className="w-6 h-6 p-0 text-gray-400 hover:text-white"
-            >
-              +
-            </Button>
-          </div>
-        </div>
-
-        {/* Virtual Piano */}
-        <div className="relative">
-          {/* Keyboard Container */}
-          <div className="relative h-32 w-full overflow-hidden rounded border border-gray-600">
-            {/* White Keys */}
-            <div className="flex h-full">
-              {whiteKeys.map((note, index) => {
-                const isActive = activeKeys.has(note) || 
-                               activeKeys.has(Object.keys(keyboardMap).find(key => 
-                                 keyboardMap[key] === getMidiNote(note, octave) - (octave + 1) * 12
-                               ));
-                
-                return (
-                  <button
-                    key={`${note}-${octave}`}
-                    className={`flex-1 h-full border-r border-gray-600 transition-colors ${
-                      isActive 
-                        ? 'bg-[#ff4500] text-white' 
-                        : 'bg-white hover:bg-gray-100 text-gray-800'
-                    }`}
-                    onMouseDown={() => handleMouseDown(note)}
-                    onMouseUp={() => handleMouseUp(note)}
-                    onMouseLeave={() => handleMouseUp(note)}
-                  >
-                    <div className="flex flex-col justify-end h-full p-2">
-                      <div className="text-xs font-medium">{note}{octave}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Black Keys */}
-            <div className="absolute top-0 left-0 h-20 w-full pointer-events-none">
-              {blackKeys.map((note) => {
-                const position = getKeyPosition(note, 0);
-                const isActive = activeKeys.has(note) || 
-                               activeKeys.has(Object.keys(keyboardMap).find(key => 
-                                 keyboardMap[key] === getMidiNote(note, octave) - (octave + 1) * 12
-                               ));
-
-                return (
-                  <button
-                    key={`${note}-${octave}`}
-                    className={`absolute w-3 h-20 pointer-events-auto transition-colors ${
-                      isActive 
-                        ? 'bg-[#ff6500] border-[#ff4500]' 
-                        : 'bg-gray-800 hover:bg-gray-700 border-gray-900'
-                    } border rounded-b`}
-                    style={{ left: `${position}%` }}
-                    onMouseDown={() => handleMouseDown(note)}
-                    onMouseUp={() => handleMouseUp(note)}
-                    onMouseLeave={() => handleMouseUp(note)}
-                  >
-                    <div className="flex items-end justify-center h-full pb-1">
-                      <div className="text-xs text-white font-medium transform -rotate-90 origin-center">
-                        {note.replace('#', '♯')}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Keyboard Shortcuts Info */}
-          <div className="mt-2 text-xs text-gray-500 text-center">
-            Use your computer keyboard: A-K keys to play notes | Change octave with +/- buttons
-          </div>
-        </div>
-
-        {/* Active Notes Display */}
-        {activeKeys.size > 0 && (
-          <div className="text-xs text-gray-400">
-            Playing: {activeKeys.size} note(s)
-          </div>
-        )}
       </div>
-    </Card>
+
+      {/* Piano Keys */}
+      <div className="relative select-none">
+        <div className="flex">
+          {/* White Keys */}
+          {Array.from({ length: totalOctaves * 7 }, (_, i) => {
+            const keyIndex = i % 7;
+            const currentOctave = startOctave + Math.floor(i / 7);
+            const note = `${whiteKeys[keyIndex]}${currentOctave}`;
+            const isPressed = pressedKeys.has(note);
+            
+            return (
+              <button
+                key={note}
+                className={`relative border border-gray-600 transition-all duration-75 ${
+                  isPressed 
+                    ? 'bg-[#ff4500] border-[#ff4500]' 
+                    : 'bg-white hover:bg-gray-100'
+                } ${
+                  isMobile 
+                    ? 'w-8 h-20 text-xs' 
+                    : 'w-12 h-32 text-sm'
+                }`}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  handleNotePlay(note);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  handleNoteStop(note);
+                }}
+                onMouseDown={() => handleNotePlay(note)}
+                onMouseUp={() => handleNoteStop(note)}
+                onMouseLeave={() => handleNoteStop(note)}
+              >
+                <span className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 text-black font-medium ${
+                  isMobile ? 'text-xs' : 'text-sm'
+                }`}>
+                  {whiteKeys[keyIndex]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Black Keys */}
+        <div className="absolute top-0 flex">
+          {Array.from({ length: totalOctaves * 7 }, (_, i) => {
+            const keyIndex = i % 7;
+            const currentOctave = startOctave + Math.floor(i / 7);
+            const blackKeyNote = blackKeys[keyIndex];
+            
+            if (!blackKeyNote) {
+              return (
+                <div 
+                  key={`spacer-${i}`} 
+                  className={isMobile ? 'w-8' : 'w-12'}
+                />
+              );
+            }
+            
+            const note = `${blackKeyNote}${currentOctave}`;
+            const isPressed = pressedKeys.has(note);
+            
+            return (
+              <div key={`container-${i}`} className={`relative ${isMobile ? 'w-8' : 'w-12'}`}>
+                <button
+                  className={`absolute transition-all duration-75 border border-gray-700 ${
+                    isPressed 
+                      ? 'bg-[#ff4500] border-[#ff4500]' 
+                      : 'bg-gray-800 hover:bg-gray-700'
+                  } ${
+                    isMobile 
+                      ? 'w-5 h-12 -ml-2.5 text-xs' 
+                      : 'w-8 h-20 -ml-4 text-sm'
+                  }`}
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    handleNotePlay(note);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    handleNoteStop(note);
+                  }}
+                  onMouseDown={() => handleNotePlay(note)}
+                  onMouseUp={() => handleNoteStop(note)}
+                  onMouseLeave={() => handleNoteStop(note)}
+                >
+                  <span className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 text-white font-medium ${
+                    isMobile ? 'text-xs' : 'text-sm'
+                  }`}>
+                    {blackKeyNote.replace('#', '♯')}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Keyboard Shortcuts Info - Desktop Only */}
+      {!isMobile && (
+        <div className="mt-3 text-xs text-gray-500 text-center">
+          Use computer keyboard: A S D F G H J K L (white keys) • W E T Y U O P (black keys)
+        </div>
+      )}
+      
+      {/* Mobile Instructions */}
+      {isMobile && (
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          Tap keys to play • Use octave controls to change range
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -1,7 +1,12 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
 
 export const useVirtualInstruments = () => {
-  const [availableInstruments] = useState([
+  const [availableInstruments, setAvailableInstruments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const baseURL = process.env.REACT_APP_BACKEND_URL;
     {
       id: 'grand_piano',
       name: 'Grand Piano',

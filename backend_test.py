@@ -715,6 +715,13 @@ class BandLabAPITester:
         self.test_add_track_to_project()
         self.test_update_track()
         
+        # Audio Upload Tests
+        print("\n🎧 Audio Upload Tests")
+        self.test_audio_upload()
+        self.test_audio_file_serve()
+        self.test_audio_upload_validation()
+        self.test_audio_delete()
+        
         # Effects and Instruments Tests
         print("\n🎛️ Effects and Instruments Tests")
         self.test_get_effects()

@@ -592,6 +592,20 @@ export const useSamples = () => {
     await Promise.all(promises);
   }, [samplePacks, loadSample]);
 
+  // Generate samples (preload generated samples)
+  const generateSamples = useCallback(async () => {
+    try {
+      // Preload a few samples from each pack
+      for (const pack of samplePacks.slice(0, 2)) { // Only first 2 packs to avoid overwhelming
+        for (const sample of pack.samples.slice(0, 3)) { // Only first 3 samples per pack
+          await loadSample(sample);
+        }
+      }
+    } catch (error) {
+      console.error('Error generating samples:', error);
+    }
+  }, [samplePacks, loadSample]);
+
   return {
     samplePacks,
     loadedSamples: Array.from(loadedSamples.values()),
@@ -603,6 +617,7 @@ export const useSamples = () => {
     getSamplesByPack,
     searchSamples,
     preloadPack,
+    generateSamples, // Add the missing function
     currentlyPlaying: Array.from(currentlyPlayingRef.current.keys())
   };
 };

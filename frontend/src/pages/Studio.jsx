@@ -494,7 +494,12 @@ const Studio = () => {
             <MessageSquare className="w-4 h-4 mr-1" />
             Chat
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-gray-700 h-8">
+          <Button 
+            onClick={handleImportFiles}
+            variant="ghost" 
+            size="sm" 
+            className="text-gray-300 hover:text-white hover:bg-gray-700 h-8"
+          >
             <Upload className="w-4 h-4 mr-1" />
             Import
           </Button>

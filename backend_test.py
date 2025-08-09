@@ -26,6 +26,8 @@ class BandLabAPITester:
         self.test_project_id = None
         self.test_track_id = None
         self.test_results = []
+        self.test_username = None
+        self.test_password = None
         
     def log_result(self, test_name, success, message="", response_data=None):
         """Log test results"""

@@ -7,15 +7,7 @@ import { Piano, Volume2, Settings } from 'lucide-react';
 import { useVirtualInstruments } from '../hooks/useVirtualInstruments';
 
 const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument }) => {
-  const { 
-    availableInstruments, 
-    playNote, 
-    stopNote, 
-    stopAllNotes, 
-    getPreset, 
-    keyboardMap,
-    activeNotes 
-  } = useVirtualInstruments();
+  const { availableInstruments } = useVirtualInstruments();
 
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [velocity, setVelocity] = useState([100]);
@@ -25,7 +17,7 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
   const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
   const blackKeys = ['C#', 'D#', 'F#', 'G#', 'A#'];
   
-  const instrument = availableInstruments.find(inst => inst.id === selectedInstrument) || availableInstruments[0];
+  const instrument = availableInstruments.find(inst => inst.id === activeInstrument) || availableInstruments[0];
 
   useEffect(() => {
     if (instrument && instrument.presets.length > 0 && !selectedPreset) {

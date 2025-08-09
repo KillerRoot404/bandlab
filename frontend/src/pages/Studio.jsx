@@ -52,13 +52,30 @@ const Studio = () => {
   } = useAudioEngine();
 
   // Advanced Effects Hook
-  const { availableEffects, createEffectChain } = useAdvancedEffects();
+  const { availableEffects, createEffectChain, loading: effectsLoading, error: effectsError } = useAdvancedEffects();
 
   // Virtual Instruments Hook
-  const { availableInstruments, playNote, stopNote, stopAllNotes, getPreset, keyboardMap } = useVirtualInstruments();
+  const { 
+    availableInstruments, 
+    playNote, 
+    stopNote, 
+    stopAllNotes, 
+    getPreset, 
+    keyboardMap,
+    loading: instrumentsLoading,
+    error: instrumentsError
+  } = useVirtualInstruments();
 
   // Samples Hook
-  const { availablePacks, loadPack, getSamples, playSample, generateSamples } = useSamples();
+  const { 
+    availablePacks, 
+    loadPack, 
+    getSamples, 
+    playSample, 
+    generateSamples,
+    loading: samplesLoading,
+    error: samplesError
+  } = useSamples();
 
   // Projects Hook
   const { 
@@ -66,11 +83,14 @@ const Studio = () => {
     projects, 
     createProject, 
     loadProject, 
+    loadProjects,
     saveProject, 
     updateProject,
     addTrack: projectAddTrack,
     updateTrack: projectUpdateTrack,
-    deleteTrack: projectDeleteTrack
+    deleteTrack: projectDeleteTrack,
+    loading: projectsLoading,
+    error: projectsError
   } = useProjects();
 
   // UI State

@@ -439,8 +439,10 @@ async def login_user(login_data: UserLogin):
     # Create JWT token
     token = create_jwt_token(user['id'])
     
-    # Remove password from response
+    # Remove password and MongoDB _id from response
     del user['password']
+    if '_id' in user:
+        del user['_id']
     
     return {"user": user, "token": token}
 

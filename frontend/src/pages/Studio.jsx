@@ -6,7 +6,9 @@ import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { useToast } from '../hooks/use-toast';
+import { useAudioEngine } from '../hooks/useAudioEngine';
+import Timeline from '../components/Timeline';
 import {
   Play,
   Pause,
@@ -48,15 +50,32 @@ import {
 import { mockStudioData } from '../data/mock';
 
 const Studio = () => {
+  const { toast } = useToast();
+  const {
+    isRecording: audioIsRecording,
+    isPlaying: audioIsPlaying,
+    currentTime,
+    bpm,
+    masterVolume,
+    startRecording,
+    stopRecording,
+    startPlayback,
+    stopPlayback,
+    updateMasterVolume,
+    setBpm,
+    setCurrentTime,
+    getTrackClips,
+    deleteClip,
+    moveClip,
+    generateWaveform,
+    initializeAudioContext
+  } = useAudioEngine();
+
   const [studioData, setStudioData] = useState(mockStudioData);
-  const [playbackTime, setPlaybackTime] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState('1');
-  const [masterVolume, setMasterVolume] = useState([75]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
-  const [bpm] = useState(120);
+  const [recordingTrack, setRecordingTrack] = useState(null);
   
   // Real-time collaboration mock
   const [onlineUsers] = useState([
@@ -64,28 +83,91 @@ const Studio = () => {
     { id: 2, name: 'Maya Singer', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b7d0a6f1?w=32&h=32&fit=crop&crop=face', color: '#ef4444' }
   ]);
 
-  // Simulate playback timer
+  // Initialize audio context on component mount
   useEffect(() => {
-    let interval;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setPlaybackTime(prev => prev + 0.1);
-      }, 100);
+    initializeAudioContext();
+  }, [initializeAudioContext]);
+
+  const handlePlay = async () => {
+    if (audioIsPlaying) {
+      stopPlayback();
+    } else {
+      try {
+        await startPlayback(currentTime);
+        toast({
+          title: "Playback Started",
+          description: "Playing from " + formatTime(currentTime),
+        });
+      } catch (error) {
+        console.error('Playback error:', error);
+        toast({
+          title: "Playback Error",
+          description: "Unable to start playback. Check audio permissions.",
+          variant: "destructive"
+        });
+      }
     }
-    return () => clearInterval(interval);
-  }, [isPlaying]);
-
-  const togglePlay = () => {
-    setIsPlaying(!isPlaying);
   };
 
-  const stopPlayback = () => {
-    setIsPlaying(false);
-    setPlaybackTime(0);
+  const handleStop = () => {
+    stopPlayback();
+    setCurrentTime(0);
+    toast({
+      title: "Playback Stopped",
+      description: "Returned to beginning",
+    });
   };
 
-  const toggleRecord = () => {
-    setIsRecording(!isRecording);
+  const handleRecord = async () => {
+    if (audioIsRecording) {
+      stopRecording();
+      setRecordingTrack(null);
+      // Update track state
+      setStudioData(prev => ({
+        ...prev,
+        tracks: prev.tracks.map(track => 
+          track.id === recordingTrack 
+            ? { ...track, isRecording: false }
+            : track
+        )
+      }));
+      toast({
+        title: "Recording Stopped",
+        description: "Audio clip saved to timeline",
+      });
+    } else {
+      try {
+        await startRecording(selectedTrack);
+        setRecordingTrack(selectedTrack);
+        // Update track state
+        setStudioData(prev => ({
+          ...prev,
+          tracks: prev.tracks.map(track => 
+            track.id === selectedTrack 
+              ? { ...track, isRecording: true }
+              : track
+          )
+        }));
+        toast({
+          title: "Recording Started",
+          description: `Recording to ${studioData.tracks.find(t => t.id === selectedTrack)?.name}`,
+        });
+      } catch (error) {
+        console.error('Recording error:', error);
+        toast({
+          title: "Recording Error",
+          description: "Unable to start recording. Check microphone permissions.",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleSeek = (time) => {
+    setCurrentTime(time);
+    if (audioIsPlaying) {
+      startPlayback(time);
+    }
   };
 
   const toggleTrackMute = (trackId) => {
@@ -97,6 +179,11 @@ const Studio = () => {
           : track
       )
     }));
+    
+    toast({
+      title: track.muted ? "Track Unmuted" : "Track Muted",
+      description: `${studioData.tracks.find(t => t.id === trackId)?.name}`,
+    });
   };
 
   const toggleTrackSolo = (trackId) => {
@@ -126,10 +213,11 @@ const Studio = () => {
     const newTrack = {
       id: String(studioData.tracks.length + 1),
       name: `Track ${studioData.tracks.length + 1}`,
-      instrument: 'Synth',
+      instrument: 'Audio',
       volume: 75,
       muted: false,
       solo: false,
+      isRecording: false,
       color: colors[studioData.tracks.length % colors.length],
       clips: []
     };
@@ -138,6 +226,42 @@ const Studio = () => {
       ...prev,
       tracks: [...prev.tracks, newTrack]
     }));
+
+    toast({
+      title: "Track Added",
+      description: `${newTrack.name} created`,
+    });
+  };
+
+  const deleteTrack = (trackId) => {
+    setStudioData(prev => ({
+      ...prev,
+      tracks: prev.tracks.filter(track => track.id !== trackId)
+    }));
+    
+    toast({
+      title: "Track Deleted",
+      description: "Track and all clips removed",
+    });
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const centiseconds = Math.floor((seconds % 1) * 100);
+    return `${mins}:${secs.toString().padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleClipDelete = (clipId) => {
+    deleteClip(clipId);
+    toast({
+      title: "Clip Deleted",
+      description: "Audio clip removed from timeline",
+    });
+  };
+
+  const handleClipMove = (clipId, newStartTime) => {
+    moveClip(clipId, newStartTime);
   };
 
   return (
@@ -184,19 +308,20 @@ const Studio = () => {
         </div>
       </div>
 
-      {/* Transport Controls - Exatamente como o original */}
+      {/* Transport Controls - Funcionais */}
       <div className="bg-[#242529] border-b border-gray-800 px-6 py-4">
         <div className="flex items-center justify-center space-x-3">
           <Button
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-white w-8 h-8"
+            onClick={() => handleSeek(Math.max(0, currentTime - 10))}
           >
             <SkipBack className="w-4 h-4" />
           </Button>
           
           <Button
-            onClick={stopPlayback}
+            onClick={handleStop}
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-white w-8 h-8"
@@ -205,31 +330,32 @@ const Studio = () => {
           </Button>
           
           <Button
-            onClick={togglePlay}
+            onClick={handlePlay}
             className="bg-[#ff4500] hover:bg-[#ff5722] text-white rounded-full w-12 h-12"
           >
-            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            {audioIsPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </Button>
           
           <Button
-            onClick={toggleRecord}
+            onClick={handleRecord}
             variant="ghost"
             size="sm"
-            className={`w-8 h-8 ${isRecording ? "text-red-500" : "text-gray-400 hover:text-white"}`}
+            className={`w-8 h-8 ${audioIsRecording ? "text-red-500" : "text-gray-400 hover:text-white"}`}
           >
-            <div className={`w-3 h-3 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} />
+            <div className={`w-3 h-3 rounded-full ${audioIsRecording ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} />
           </Button>
           
           <Button
             variant="ghost"
             size="sm"
             className="text-gray-400 hover:text-white w-8 h-8"
+            onClick={() => handleSeek(currentTime + 10)}
           >
             <SkipForward className="w-4 h-4" />
           </Button>
           
           <div className="mx-6 bg-[#1a1a1b] px-3 py-1 rounded text-sm font-mono border border-gray-700">
-            {Math.floor(playbackTime / 60)}:{String(Math.floor(playbackTime % 60)).padStart(2, '0')}
+            {formatTime(currentTime)}
           </div>
           
           <Button
@@ -252,9 +378,9 @@ const Studio = () => {
         </div>
       </div>
 
-      {/* Main Layout - Três painéis como o original */}
+      {/* Main Layout - Três painéis funcionais */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Tracks Mixer */}
+        {/* Left Panel - Tracks Mixer Funcional */}
         <div className="w-64 bg-[#242529] border-r border-gray-800 flex flex-col">
           <div className="p-3 border-b border-gray-800">
             <div className="flex items-center justify-between">
@@ -286,7 +412,21 @@ const Studio = () => {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: track.color }}
                     />
-                    <span className="text-sm font-medium text-white">{track.name}</span>
+                    <Input
+                      value={track.name}
+                      onChange={(e) => {
+                        setStudioData(prev => ({
+                          ...prev,
+                          tracks: prev.tracks.map(t => 
+                            t.id === track.id ? { ...t, name: e.target.value } : t
+                          )
+                        }));
+                      }}
+                      className="bg-transparent border-none p-0 h-auto text-sm font-medium text-white w-20"
+                    />
+                    {track.isRecording && (
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    )}
                   </div>
                   <div className="flex items-center space-x-1">
                     <Button 
@@ -297,6 +437,10 @@ const Studio = () => {
                       <Copy className="w-3 h-3" />
                     </Button>
                     <Button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteTrack(track.id);
+                      }}
                       variant="ghost" 
                       size="sm"
                       className="w-5 h-5 p-0 text-gray-500 hover:text-red-400"
@@ -308,7 +452,7 @@ const Studio = () => {
                 
                 <div className="text-xs text-gray-400 mb-3">{track.instrument}</div>
                 
-                {/* Track Controls */}
+                {/* Track Controls Funcionais */}
                 <div className="flex items-center space-x-1 mb-3">
                   <Button
                     onClick={(e) => {
@@ -337,13 +481,23 @@ const Studio = () => {
                     S
                   </Button>
                   <Button
-                    className="w-6 h-5 p-0 text-xs font-bold bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedTrack === track.id && !audioIsRecording) {
+                        handleRecord();
+                      }
+                    }}
+                    className={`w-6 h-5 p-0 text-xs font-bold rounded ${
+                      track.isRecording
+                        ? 'bg-red-600 text-white animate-pulse'
+                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    }`}
                   >
                     R
                   </Button>
                 </div>
                 
-                {/* Volume Control */}
+                {/* Volume Control Funcional */}
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <Volume2 className="w-3 h-3 text-gray-500" />
@@ -371,104 +525,31 @@ const Studio = () => {
                     <span className="text-xs text-gray-400 w-6">C</span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center Panel - Timeline */}
-        <div className="flex-1 flex flex-col bg-[#1a1a1b]">
-          {/* Timeline Header */}
-          <div className="bg-[#242529] border-b border-gray-800 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-300">Timeline</span>
-              <div className="flex items-center space-x-2">
-                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white w-8 h-8 p-0">
-                  <Grid3X3 className="w-4 h-4" />
-                </Button>
-                <span className="text-xs text-gray-400">100%</span>
-              </div>
-            </div>
-            
-            {/* Time Ruler */}
-            <div className="relative h-6 bg-[#2a2a2e] rounded overflow-hidden border border-gray-700">
-              {/* Timeline markers */}
-              <div className="absolute inset-0 flex">
-                {Array.from({ length: 16 }).map((_, i) => (
-                  <div key={i} className="flex-1 border-r border-gray-600 flex items-center justify-center">
-                    <span className="text-xs text-gray-500">{i * 4 + 1}</span>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Playhead */}
-              <div 
-                className="absolute top-0 w-0.5 h-full bg-[#ff4500] z-10"
-                style={{ left: `${(playbackTime / 64) * 100}%` }}
-              />
-            </div>
-          </div>
-          
-          {/* Track Timeline */}
-          <div className="flex-1 overflow-y-auto">
-            {studioData.tracks.map((track) => (
-              <div 
-                key={track.id}
-                className={`h-16 border-b border-gray-800 flex items-center px-3 ${
-                  selectedTrack === track.id ? 'bg-[#242529]/50' : 'hover:bg-[#242529]/30'
-                }`}
-              >
-                <div className="flex-1 h-10 bg-[#2a2a2e] rounded relative overflow-hidden border border-gray-700">
-                  {/* Audio clips with enhanced waveforms */}
-                  {track.clips.map((clip) => (
-                    <div
-                      key={clip.id}
-                      className="absolute h-full rounded border-2 flex items-center px-2 cursor-pointer hover:brightness-110 transition-all"
-                      style={{
-                        backgroundColor: track.color + '60',
-                        borderColor: track.color,
-                        left: `${(clip.start / 64) * 100}%`,
-                        width: `${(clip.duration / 64) * 100}%`
-                      }}
-                    >
-                      <span className="text-xs text-white font-medium truncate">{clip.name}</span>
-                      
-                      {/* Enhanced Waveform */}
-                      <div className="absolute inset-0 overflow-hidden p-px">
-                        <div className="flex items-end h-full opacity-40">
-                          {Array.from({ length: Math.floor(clip.duration * 8) }).map((_, i) => {
-                            const height = Math.abs(Math.sin(i * 0.3) * Math.cos(i * 0.1)) * 90 + 10;
-                            return (
-                              <div
-                                key={i}
-                                className="w-px bg-white mx-px"
-                                style={{ height: `${height}%` }}
-                              />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                
+                {/* Clip Count */}
+                <div className="mt-2 text-xs text-gray-500">
+                  {getTrackClips(track.id).length} clips
                 </div>
               </div>
             ))}
           </div>
-          
-          {/* Piano Roll Toggle */}
-          <div className="border-t border-gray-800 p-3 bg-[#242529]">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-400 hover:text-white"
-            >
-              <Piano className="w-4 h-4 mr-2" />
-              Piano Roll
-            </Button>
-          </div>
         </div>
 
-        {/* Right Panel - Browser (exatamente como o original) */}
+        {/* Center Panel - Timeline Funcional */}
+        <Timeline 
+          tracks={studioData.tracks}
+          currentTime={currentTime}
+          isPlaying={audioIsPlaying}
+          onSeek={handleSeek}
+          selectedTrack={selectedTrack}
+          onTrackSelect={setSelectedTrack}
+          getTrackClips={getTrackClips}
+          deleteClip={handleClipDelete}
+          moveClip={handleClipMove}
+          generateWaveform={generateWaveform}
+        />
+
+        {/* Right Panel - Browser (igual ao anterior) */}
         <div className="w-72 bg-[#242529] border-l border-gray-800">
           <Tabs defaultValue="sounds" className="h-full flex flex-col">
             <TabsList className="grid w-full grid-cols-3 bg-[#2a2a2e] border-b border-gray-800 rounded-none h-10">
@@ -594,14 +675,15 @@ const Studio = () => {
         </div>
       </div>
 
-      {/* Status Bar - Exatamente como o original */}
+      {/* Status Bar Funcional */}
       <div className="bg-[#242529] border-t border-gray-800 px-4 py-2">
         <div className="flex items-center justify-between text-xs text-gray-400">
           <div className="flex items-center space-x-4">
             <span>CPU: 15%</span>
             <span>44.1 kHz</span>
-            <span>256 samples</span>
             <span>Latency: 5.8ms</span>
+            <span>Tracks: {studioData.tracks.length}</span>
+            <span>Clips: {studioData.tracks.reduce((total, track) => total + getTrackClips(track.id).length, 0)}</span>
             {onlineUsers.length > 0 && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -614,13 +696,13 @@ const Studio = () => {
             <div className="flex items-center space-x-2">
               <MonitorSpeaker className="w-4 h-4" />
               <Slider
-                value={masterVolume}
-                onValueChange={setMasterVolume}
+                value={[masterVolume]}
+                onValueChange={(value) => updateMasterVolume(value[0])}
                 max={100}
                 step={1}
                 className="w-20"
               />
-              <span className="w-6">{masterVolume[0]}</span>
+              <span className="w-6">{Math.round(masterVolume)}</span>
             </div>
             
             <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white w-6 h-6 p-0">

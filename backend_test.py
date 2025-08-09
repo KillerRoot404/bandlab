@@ -592,12 +592,22 @@ class BandLabAPITester:
             if response.status_code == 200:
                 response_data = response.json()
                 print(f"DEBUG: Audio upload response: {response_data}")  # Debug line
-                if 'clip' in response_data and 'file_id' in response_data:
-                    self.test_file_id = response_data['file_id']
-                    self.log_result(test_name, True, f"Audio uploaded successfully: {response_data['file_id']}")
-                    return True
+                if 'clip' in response_data:
+                    # Extract file ID from file path if available
+                    if 'file_path' in response_data['clip'] and response_data['clip']['file_path']:
+                        file_path = response_data['clip']['file_path']
+                        # Extract filename from path
+                        self.test_file_id = file_path.split('/')[-1]
+                        self.log_result(test_name, True, f"Audio uploaded successfully: {self.test_file_id}")
+                        return True
+                    elif 'file_id' in response_data:
+                        self.test_file_id = response_data['file_id']
+                        self.log_result(test_name, True, f"Audio uploaded successfully: {response_data['file_id']}")
+                        return True
+                    else:
+                        self.log_result(test_name, False, "No file_id or file_path in clip data", response_data)
                 else:
-                    self.log_result(test_name, False, "Missing clip or file_id in response", response_data)
+                    self.log_result(test_name, False, "Missing clip in response", response_data)
             else:
                 self.log_result(test_name, False, f"HTTP {response.status_code}: {response.text}")
                 

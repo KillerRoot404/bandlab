@@ -210,7 +210,7 @@ const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePla
           {/* Sample Packs */}
           <TabsContent value="packs" className="flex-1 mt-4 overflow-y-auto space-y-3">
             <div className="space-y-4">
-              {samplePacks.map((pack) => (
+              {packs.map((pack) => (
                 <div key={pack.id} className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <div 

@@ -176,7 +176,7 @@ const Studio = () => {
       setRecordingTrack(null);
       
       if (currentProject) {
-        updateTrack(selectedTrack, { isRecording: false });
+        projectUpdateTrack(currentProject.id, selectedTrack, { isRecording: false });
       }
       
       toast({

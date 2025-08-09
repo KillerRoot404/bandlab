@@ -86,9 +86,8 @@ const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePla
   };
 
   const handleAddToTrack = (sample) => {
-    if (onSampleSelect) {
-      onSampleSelect(sample);
-    }
+    // This function would be implemented to add sample to track
+    console.log('Adding sample to track:', sample);
   };
 
   const renderSample = (sample, packInfo = null) => {

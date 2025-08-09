@@ -591,7 +591,6 @@ class BandLabAPITester:
             
             if response.status_code == 200:
                 response_data = response.json()
-                print(f"DEBUG: Audio upload response: {response_data}")  # Debug line
                 if 'clip' in response_data:
                     # Extract file ID from file path if available
                     if 'file_path' in response_data['clip'] and response_data['clip']['file_path']:

@@ -88,15 +88,13 @@ class BandLabAPITester:
         """Test user login with existing credentials"""
         test_name = "User Login"
         
-        if not self.test_user_id:
-            self.log_result(test_name, False, "No test user available for login test")
+        if not self.test_username or not self.test_password:
+            self.log_result(test_name, False, "No test credentials available for login test")
             return False
             
-        # Use the same credentials from registration
-        timestamp = str(int(datetime.now().timestamp()))
         login_data = {
-            "username": f"testuser_{timestamp}",
-            "password": "SecurePassword123!"
+            "username": self.test_username,
+            "password": self.test_password
         }
         
         # Clear auth header to test login

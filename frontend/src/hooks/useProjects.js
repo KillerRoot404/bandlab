@@ -46,13 +46,18 @@ export const useProjects = () => {
       const response = await axios.get(`${baseURL}/api/projects`);
       setProjects(response.data);
       
+      // If no current project, set the first one
+      if (response.data.length > 0 && !currentProject) {
+        setCurrentProject(response.data[0]);
+      }
+      
     } catch (err) {
       const message = err.response?.data?.detail || 'Failed to load projects';
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, baseURL]);
+  }, [isAuthenticated, baseURL, currentProject]);
 
   // Load public projects
   const loadPublicProjects = useCallback(async (limit = 20) => {

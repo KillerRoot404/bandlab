@@ -262,7 +262,7 @@ const Studio = () => {
       color: colors[tracks.length % colors.length]
     };
 
-    addTrack(newTrackData);
+    projectAddTrack(currentProject.id, newTrackData);
     toast({
       title: "Track Added",
       description: `${newTrackData.name} created`,

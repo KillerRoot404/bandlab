@@ -6,7 +6,7 @@ import { Slider } from './ui/slider';
 import { Piano, Volume2, Settings } from 'lucide-react';
 import { useVirtualInstruments } from '../hooks/useVirtualInstruments';
 
-const VirtualKeyboard = ({ selectedInstrument, onInstrumentChange }) => {
+const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument }) => {
   const { 
     availableInstruments, 
     playNote, 

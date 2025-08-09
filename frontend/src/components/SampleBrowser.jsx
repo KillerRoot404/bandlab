@@ -18,30 +18,34 @@ import {
 } from 'lucide-react';
 import { useSamples } from '../hooks/useSamples';
 
-const SampleBrowser = ({ onSampleSelect }) => {
-  const {
-    samplePacks,
-    playSample,
-    stopAllSamples,
-    getSamplesByType,
-    getSamplesByPack,
-    searchSamples,
-    currentlyPlaying
-  } = useSamples();
+const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePlay, getSamples }) => {
+  const { samplePacks } = useSamples();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPack, setSelectedPack] = useState(samplePacks[0]?.id || '');
   const [playingId, setPlayingId] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
 
+  const packs = availablePacks || samplePacks;
+
   useEffect(() => {
     if (searchQuery.trim()) {
-      const results = searchSamples(searchQuery);
+      // Simple search implementation
+      const results = [];
+      packs.forEach(pack => {
+        pack.samples.forEach(sample => {
+          const matchesName = sample.name.toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesTags = sample.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+          
+          if (matchesName || matchesTags) {
+            results.push({ ...sample, packName: pack.name, packColor: pack.color });
+          }
+        });
+      });
       setSearchResults(results);
     } else {
       setSearchResults([]);
     }
-  }, [searchQuery, searchSamples]);
+  }, [searchQuery, packs]);
 
   const getSampleIcon = (type) => {
     const icons = {

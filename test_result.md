@@ -100,6 +100,18 @@
 user_problem_statement: "Refaça todo frount-end,deixando identico ao original,ajeite o erro de upload e configure para ser responssivo e funcionar em mobile"
 
 backend:
+  - task: "Audio Upload Endpoint"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added missing /api/audio/upload endpoint with chunked file upload support, file validation, size limits (50MB), and proper authentication. Also added file serving endpoint /api/audio/file/{file_id} and delete endpoint."
+
   - task: "Complete Backend API System"
     implemented: true
     working: true

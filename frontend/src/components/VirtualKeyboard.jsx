@@ -120,7 +120,7 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
           
           <Select 
             value={instrument.id} 
-            onValueChange={onInstrumentChange}
+            disabled
           >
             <SelectTrigger className="w-40 bg-[#2a2a2e] border-gray-600 text-white">
               <SelectValue />

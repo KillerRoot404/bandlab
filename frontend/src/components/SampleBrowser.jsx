@@ -105,7 +105,7 @@ const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePla
   const renderSample = (sample, packInfo = null) => {
     const Icon = getSampleIcon(sample.type);
     const isPlaying = playingId === sample.id;
-    const pack = packInfo || samplePacks.find(p => p.samples.some(s => s.id === sample.id));
+    const pack = packInfo || packs.find(p => p.samples.some(s => s.id === sample.id));
     
     return (
       <div 

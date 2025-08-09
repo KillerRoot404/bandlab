@@ -778,6 +778,132 @@ async def add_collaborator(
     
     return {"message": f"User {username} added as collaborator"}
 
+# Audio Upload Routes
+@api_router.post("/audio/upload")
+async def upload_audio_file(
+    file: UploadFile = File(...),
+    project_id: str = Form(...),
+    track_id: str = Form(...),
+    current_user_id: str = Depends(get_current_user)
+):
+    """
+    Upload audio file and add it to a project track
+    """
+    try:
+        # Validate file type
+        if not file.content_type or not file.content_type.startswith('audio/'):
+            raise HTTPException(status_code=400, detail=f"Invalid file type: {file.content_type}")
+        
+        # Check file size (50MB limit)
+        file_size = 0
+        file_content = io.BytesIO()
+        
+        # Read file in chunks to handle large files
+        chunk_size = 1024 * 1024  # 1MB chunks
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            file_size += len(chunk)
+            file_content.write(chunk)
+            
+            # Check size limit (50MB)
+            if file_size > 50 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+        
+        file_content.seek(0)
+        
+        # Verify project exists and user has access
+        project = await db.projects.find_one({"id": project_id})
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if user is owner or collaborator
+        if (project['owner_id'] != current_user_id and 
+            current_user_id not in project.get('collaborators', [])):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if track exists in project
+        track_exists = any(track['id'] == track_id for track in project.get('tracks', []))
+        if not track_exists:
+            raise HTTPException(status_code=404, detail="Track not found in project")
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'mp3'
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        # Save file to disk
+        with open(file_path, 'wb') as f:
+            f.write(file_content.getvalue())
+        
+        # Create audio clip data
+        clip_data = {
+            "id": str(uuid.uuid4()),
+            "name": file.filename,
+            "file_path": str(file_path),
+            "file_size": file_size,
+            "duration": 0.0,  # Will be calculated on frontend
+            "start_time": 0.0,  # Will be set on frontend
+            "track_id": track_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "file_url": f"/api/audio/file/{unique_filename}"
+        }
+        
+        # Add clip to project track in database
+        await db.projects.update_one(
+            {"id": project_id, "tracks.id": track_id},
+            {"$push": {"tracks.$.clips": clip_data}}
+        )
+        
+        logger.info(f"Audio file uploaded: {file.filename} -> {unique_filename} (Size: {file_size} bytes)")
+        
+        return {
+            "message": "File uploaded successfully",
+            "clip": clip_data,
+            "file_id": unique_filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Audio upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@api_router.get("/audio/file/{file_id}")
+async def get_audio_file(file_id: str):
+    """
+    Serve uploaded audio files
+    """
+    from fastapi.responses import FileResponse
+    
+    file_path = UPLOAD_DIR / file_id
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={file_id}"}
+    )
+
+@api_router.delete("/audio/file/{file_id}")
+async def delete_audio_file(file_id: str, current_user_id: str = Depends(get_current_user)):
+    """
+    Delete uploaded audio file
+    """
+    file_path = UPLOAD_DIR / file_id
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Also remove from any projects (this is a simplified version)
+    await db.projects.update_many(
+        {},
+        {"$pull": {"tracks.$[].clips": {"file_url": f"/api/audio/file/{file_id}"}}}
+    )
+    
+    return {"message": "File deleted successfully"}
+
 # Legacy Routes (for backwards compatibility)
 @api_router.get("/")
 async def root():

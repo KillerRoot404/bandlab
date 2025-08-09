@@ -532,7 +532,7 @@ const Studio = () => {
                       value={track.name}
                       onChange={(e) => {
                         if (currentProject) {
-                          updateTrack(track.id, { name: e.target.value });
+                          projectUpdateTrack(currentProject.id, track.id, { name: e.target.value });
                         }
                       }}
                       className="bg-transparent border-none p-0 h-auto text-sm font-medium text-white w-20"

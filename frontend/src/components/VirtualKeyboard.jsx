@@ -265,9 +265,9 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
         </div>
 
         {/* Active Notes Display */}
-        {activeNotes.length > 0 && (
+        {activeKeys.size > 0 && (
           <div className="text-xs text-gray-400">
-            Playing: {activeNotes.length} note(s)
+            Playing: {activeKeys.size} note(s)
           </div>
         )}
       </div>

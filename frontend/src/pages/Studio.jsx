@@ -1055,6 +1055,81 @@ const Studio = () => {
         isOpen={showAuthModal} 
         onClose={() => setShowAuthModal(false)} 
       />
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-[#242529] border border-gray-700 rounded-lg p-6 w-96 max-w-[90vw]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-white">Import Audio Files</h3>
+              <Button
+                onClick={() => setShowImportModal(false)}
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white w-6 h-6 p-0"
+              >
+                ×
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-300">
+                Select audio files to import into track: <span className="text-[#ff4500] font-medium">
+                  {tracks.find(t => t.id === selectedTrack)?.name}
+                </span>
+              </div>
+              
+              <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-500 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  accept="audio/*"
+                  onChange={(e) => handleFileUpload(Array.from(e.target.files))}
+                  className="hidden"
+                  id="file-upload"
+                  disabled={isUploading}
+                />
+                <label 
+                  htmlFor="file-upload" 
+                  className={`cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <div className="text-gray-300">
+                    {isUploading ? 'Uploading...' : 'Click to select audio files'}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Supports: MP3, WAV, OGG, M4A, FLAC
+                  </div>
+                </label>
+              </div>
+              
+              <div className="text-xs text-gray-400 space-y-1">
+                <div>• Files will be placed at current timeline position ({formatTime(currentTime)})</div>
+                <div>• Maximum file size: 50MB per file</div>
+                <div>• Files will be automatically converted if needed</div>
+              </div>
+              
+              {isUploading && (
+                <div className="flex items-center space-x-2 text-[#ff4500]">
+                  <div className="w-4 h-4 border-2 border-[#ff4500] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm">Uploading and processing files...</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button
+                onClick={() => setShowImportModal(false)}
+                variant="ghost"
+                className="text-gray-300 hover:text-white"
+                disabled={isUploading}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

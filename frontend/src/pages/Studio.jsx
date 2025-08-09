@@ -782,7 +782,7 @@ const Studio = () => {
                   if (currentProject) {
                     const track = tracks.find(t => t.id === selectedTrack);
                     const updatedEffects = [...(track?.effects || []), effectData];
-                    updateTrack(selectedTrack, { effects: updatedEffects });
+                    projectUpdateTrack(currentProject.id, selectedTrack, { effects: updatedEffects });
                   }
                 }}
                 onEffectUpdate={(effectIndex, paramName, value) => {
@@ -796,7 +796,7 @@ const Studio = () => {
                           param.name === paramName ? { ...param, value } : param
                         )
                       };
-                      updateTrack(selectedTrack, { effects: updatedEffects });
+                      projectUpdateTrack(currentProject.id, selectedTrack, { effects: updatedEffects });
                     }
                   }
                 }}

@@ -591,6 +591,7 @@ class BandLabAPITester:
             
             if response.status_code == 200:
                 response_data = response.json()
+                print(f"DEBUG: Audio upload response: {response_data}")  # Debug line
                 if 'clip' in response_data and 'file_id' in response_data:
                     self.test_file_id = response_data['file_id']
                     self.log_result(test_name, True, f"Audio uploaded successfully: {response_data['file_id']}")

@@ -466,6 +466,8 @@ async def update_current_user(user_update: UserUpdate, current_user_id: str = De
     
     user = await db.users.find_one({"id": current_user_id})
     del user['password']
+    if '_id' in user:
+        del user['_id']
     return User(**user)
 
 # Project Routes

@@ -350,6 +350,114 @@ const Studio = () => {
     moveClip(clipId, newStartTime);
   };
 
+  // Import functionality
+  const handleImportFiles = () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (!currentProject) {
+      toast({
+        title: "No Project",
+        description: "Please create a project first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setShowImportModal(true);
+  };
+
+  const handleFileUpload = async (files) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem('token');
+
+      for (let file of files) {
+        // Validate file type
+        if (!file.type.startsWith('audio/')) {
+          toast({
+            title: "Invalid File",
+            description: `${file.name} is not an audio file`,
+            variant: "destructive"
+          });
+          continue;
+        }
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', currentProject.id);
+        formData.append('track_id', selectedTrack);
+
+        // Upload file
+        const response = await fetch(`${backendUrl}/api/audio/upload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+
+        const result = await response.json();
+        
+        // Calculate file duration (this would be done properly with Web Audio API)
+        const audio = new Audio();
+        audio.src = URL.createObjectURL(file);
+        
+        await new Promise((resolve) => {
+          audio.addEventListener('loadedmetadata', () => {
+            // Add clip to project
+            const clipData = {
+              ...result.clip,
+              duration: audio.duration,
+              start_time: currentTime, // Place at current timeline position
+              track_id: selectedTrack
+            };
+
+            // Update project with new clip (this would be done through a proper API)
+            if (currentProject) {
+              const track = tracks.find(t => t.id === selectedTrack);
+              if (track) {
+                const updatedClips = [...(track.clips || []), clipData];
+                projectUpdateTrack(currentProject.id, selectedTrack, { clips: updatedClips });
+              }
+            }
+
+            toast({
+              title: "File Imported",
+              description: `${file.name} added to ${tracks.find(t => t.id === selectedTrack)?.name}`,
+            });
+
+            resolve();
+          });
+        });
+
+        URL.revokeObjectURL(audio.src);
+      }
+
+      setShowImportModal(false);
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload files",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1a1b] text-white flex flex-col">
       {/* Header - BandLab Style */}

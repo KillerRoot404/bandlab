@@ -90,6 +90,18 @@ const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePla
     console.log('Adding sample to track:', sample);
   };
 
+  const getSamplesByType = (type) => {
+    const results = [];
+    packs.forEach(pack => {
+      pack.samples.forEach(sample => {
+        if (sample.type === type) {
+          results.push({ ...sample, packName: pack.name, packColor: pack.color });
+        }
+      });
+    });
+    return results;
+  };
+
   const renderSample = (sample, packInfo = null) => {
     const Icon = getSampleIcon(sample.type);
     const isPlaying = playingId === sample.id;

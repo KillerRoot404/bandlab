@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
 
 export const useAdvancedEffects = () => {
-  const [availableEffects] = useState([
+  const [availableEffects, setAvailableEffects] = useState([]);
     {
       type: 'autotune',
       name: 'Auto-Tune',

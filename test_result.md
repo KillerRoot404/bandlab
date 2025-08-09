@@ -349,7 +349,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "All frontend testing completed successfully"
+    - "Audio upload endpoints testing completed successfully"
   stuck_tasks: []
   test_all: true
   test_priority: "completed"

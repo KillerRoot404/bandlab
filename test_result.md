@@ -97,7 +97,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Adcione todas as funções que existe no bandlab original,completo,torne em uma daw 100% eficiente e com efeitos como no original autotune e etc..."
+user_problem_statement: "Refaça todo frount-end,deixando identico ao original,ajeite o erro de upload e configure para ser responssivo e funcionar em mobile"
 
 backend:
   - task: "Complete Backend API System"

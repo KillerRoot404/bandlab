@@ -937,6 +937,8 @@ const Studio = () => {
                 onPackSelect={setSelectedSamplePack}
                 onSamplePlay={handleSamplePlay}
                 getSamples={getSamples}
+                loading={samplesLoading}
+                error={samplesError}
               />
             </TabsContent>
 

@@ -31,9 +31,11 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
       
       const midiNote = keyboardMap[event.code] + (octave - 4) * 12;
       if (midiNote >= 0 && midiNote <= 127) {
-        const noteKey = playNote(instrument.id, midiNote, velocity[0], selectedPreset);
-        if (noteKey) {
-          setActiveKeys(prev => new Set(prev).add(event.code));
+        if (onNotePlay) {
+          const noteKey = onNotePlay(midiNote, velocity[0], selectedPreset);
+          if (noteKey) {
+            setActiveKeys(prev => new Set(prev).add(event.code));
+          }
         }
       }
     };
@@ -42,7 +44,9 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
       if (keyboardMap[event.code]) {
         const midiNote = keyboardMap[event.code] + (octave - 4) * 12;
         const noteKey = `${instrument.id}-${midiNote}`;
-        stopNote(noteKey);
+        if (onNoteStop) {
+          onNoteStop(noteKey);
+        }
         setActiveKeys(prev => {
           const newSet = new Set(prev);
           newSet.delete(event.code);
@@ -57,9 +61,8 @@ const VirtualKeyboard = ({ onNotePlay, onNoteStop, keyboardMap, activeInstrument
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      stopAllNotes();
     };
-  }, [instrument, selectedPreset, velocity, octave, playNote, stopNote, stopAllNotes, keyboardMap]);
+  }, [instrument, selectedPreset, velocity, octave, onNotePlay, onNoteStop, keyboardMap]);
 
   const handleMouseDown = (note) => {
     const midiNote = getMidiNote(note, octave);

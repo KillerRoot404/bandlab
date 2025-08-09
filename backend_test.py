@@ -558,6 +558,137 @@ class BandLabAPITester:
             
         return False
         
+    def create_test_audio_file(self):
+        """Create a small test audio file for upload testing"""
+        # Create a minimal WAV file (44 bytes header + some data)
+        wav_header = b'RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00'
+        # Add some audio data (silence)
+        audio_data = b'\x00' * 1000  # 1000 bytes of silence
+        return wav_header + audio_data
+        
+    def test_audio_upload(self):
+        """Test uploading an audio file"""
+        test_name = "Audio Upload"
+        
+        if not self.auth_token or not self.test_project_id or not self.test_track_id:
+            self.log_result(test_name, False, "Missing required IDs for audio upload")
+            return False
+            
+        try:
+            # Create test audio file
+            audio_data = self.create_test_audio_file()
+            
+            # Prepare multipart form data
+            files = {
+                'file': ('test_audio.wav', io.BytesIO(audio_data), 'audio/wav')
+            }
+            data = {
+                'project_id': self.test_project_id,
+                'track_id': self.test_track_id
+            }
+            
+            response = self.session.post(f"{API_BASE}/audio/upload", files=files, data=data)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                if 'clip' in response_data and 'file_id' in response_data:
+                    self.test_file_id = response_data['file_id']
+                    self.log_result(test_name, True, f"Audio uploaded successfully: {response_data['file_id']}")
+                    return True
+                else:
+                    self.log_result(test_name, False, "Missing clip or file_id in response", response_data)
+            else:
+                self.log_result(test_name, False, f"HTTP {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            self.log_result(test_name, False, f"Exception: {str(e)}")
+            
+        return False
+        
+    def test_audio_file_serve(self):
+        """Test serving uploaded audio files"""
+        test_name = "Audio File Serve"
+        
+        if not self.test_file_id:
+            self.log_result(test_name, False, "No file ID available for serving test")
+            return False
+            
+        try:
+            response = self.session.get(f"{API_BASE}/audio/file/{self.test_file_id}")
+            
+            if response.status_code == 200:
+                # Check if we got file content
+                if len(response.content) > 0:
+                    self.log_result(test_name, True, f"Audio file served successfully ({len(response.content)} bytes)")
+                    return True
+                else:
+                    self.log_result(test_name, False, "Empty file content received")
+            else:
+                self.log_result(test_name, False, f"HTTP {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            self.log_result(test_name, False, f"Exception: {str(e)}")
+            
+        return False
+        
+    def test_audio_upload_validation(self):
+        """Test audio upload validation (file type, size limits)"""
+        test_name = "Audio Upload Validation"
+        
+        if not self.auth_token or not self.test_project_id or not self.test_track_id:
+            self.log_result(test_name, False, "Missing required IDs for validation test")
+            return False
+            
+        try:
+            # Test with invalid file type (text file)
+            invalid_file_data = b"This is not an audio file"
+            files = {
+                'file': ('test.txt', io.BytesIO(invalid_file_data), 'text/plain')
+            }
+            data = {
+                'project_id': self.test_project_id,
+                'track_id': self.test_track_id
+            }
+            
+            response = self.session.post(f"{API_BASE}/audio/upload", files=files, data=data)
+            
+            if response.status_code == 400:
+                self.log_result(test_name, True, "Correctly rejected invalid file type")
+                return True
+            else:
+                self.log_result(test_name, False, f"Expected 400 for invalid file type, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result(test_name, False, f"Exception: {str(e)}")
+            
+        return False
+        
+    def test_audio_delete(self):
+        """Test deleting uploaded audio files"""
+        test_name = "Audio File Delete"
+        
+        if not self.auth_token or not self.test_file_id:
+            self.log_result(test_name, False, "No auth token or file ID available")
+            return False
+            
+        try:
+            response = self.session.delete(f"{API_BASE}/audio/file/{self.test_file_id}")
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                if 'message' in response_data:
+                    self.log_result(test_name, True, f"Audio file deleted: {response_data['message']}")
+                    return True
+                else:
+                    self.log_result(test_name, False, "No message in response", response_data)
+            else:
+                self.log_result(test_name, False, f"HTTP {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            self.log_result(test_name, False, f"Exception: {str(e)}")
+            
+        return False
+        
     def run_all_tests(self):
         """Run all API tests in sequence"""
         print(f"\n🎵 Starting BandLab DAW API Tests")

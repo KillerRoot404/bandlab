@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Slider } from '../components/ui/slider';
@@ -8,49 +8,29 @@ import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
 import { useToast } from '../hooks/use-toast';
 import { useAudioEngine } from '../hooks/useAudioEngine';
+import { useAdvancedEffects } from '../hooks/useAdvancedEffects';
+import { useVirtualInstruments } from '../hooks/useVirtualInstruments';
+import { useSamples } from '../hooks/useSamples';
+import { useProjects } from '../hooks/useProjects';
+import { useAuth } from '../hooks/useAuth';
 import Timeline from '../components/Timeline';
+import VirtualKeyboard from '../components/VirtualKeyboard';
+import EffectsRack from '../components/EffectsRack';
+import SampleBrowser from '../components/SampleBrowser';
+import AuthModal from '../components/AuthModal';
 import {
-  Play,
-  Pause,
-  Square,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Mic,
-  Piano,
-  Headphones,
-  Settings,
-  Save,
-  Share2,
-  Plus,
-  Trash2,
-  SkipBack,
-  SkipForward,
-  Repeat,
-  Shuffle,
-  Users,
-  Upload,
-  Download,
-  MessageSquare,
-  Clock,
-  Grid3X3,
-  Music,
-  Waves,
-  Zap,
-  Filter,
-  Activity,
-  MonitorSpeaker,
-  Mic2,
-  Target,
-  Volume1,
-  Copy,
-  Edit3,
-  MoreHorizontal
+  Play, Pause, Square, RotateCcw, Volume2, VolumeX, Mic, Piano, Headphones,
+  Settings, Save, Share2, Plus, Trash2, SkipBack, SkipForward, Repeat, Shuffle,
+  Users, Upload, Download, MessageSquare, Clock, Grid3X3, Music, Waves, Zap,
+  Filter, Activity, MonitorSpeaker, Mic2, Target, Volume1, Copy, Edit3, MoreHorizontal,
+  LogIn, User, Maximize2, Minimize2, Sliders, FileAudio, Layers3
 } from 'lucide-react';
-import { mockStudioData } from '../data/mock';
 
 const Studio = () => {
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
+  
+  // Audio Engine Hook
   const {
     isRecording: audioIsRecording,
     isPlaying: audioIsPlaying,
@@ -71,26 +51,92 @@ const Studio = () => {
     initializeAudioContext
   } = useAudioEngine();
 
-  const [studioData, setStudioData] = useState(mockStudioData);
+  // Advanced Effects Hook
+  const { availableEffects, createEffectChain } = useAdvancedEffects();
+
+  // Virtual Instruments Hook
+  const { availableInstruments, playNote, stopNote, stopAllNotes, getPreset, keyboardMap } = useVirtualInstruments();
+
+  // Samples Hook
+  const { availablePacks, loadPack, getSamples, playSample, generateSamples } = useSamples();
+
+  // Projects Hook
+  const { 
+    currentProject, 
+    projects, 
+    createProject, 
+    loadProject, 
+    saveProject, 
+    updateProject,
+    addTrack,
+    updateTrack,
+    deleteTrack: projectDeleteTrack
+  } = useProjects();
+
+  // UI State
   const [selectedTrack, setSelectedTrack] = useState('1');
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [recordingTrack, setRecordingTrack] = useState(null);
-  
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [activeInstrument, setActiveInstrument] = useState('grand_piano');
+  const [selectedPreset, setSelectedPreset] = useState(null);
+  const [showKeyboard, setShowKeyboard] = useState(false);
+  const [selectedSamplePack, setSelectedSamplePack] = useState('hip_hop_essentials');
+
   // Real-time collaboration mock
   const [onlineUsers] = useState([
     { id: 1, name: 'Alex Producer', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=32&h=32&fit=crop&crop=face', color: '#3b82f6' },
     { id: 2, name: 'Maya Singer', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b7d0a6f1?w=32&h=32&fit=crop&crop=face', color: '#ef4444' }
   ]);
 
-  // Initialize audio context on component mount
+  // Initialize everything
   useEffect(() => {
     initializeAudioContext();
-  }, [initializeAudioContext]);
+    generateSamples();
+    
+    // Create default project if none exists
+    if (!currentProject && isAuthenticated) {
+      createProject({
+        name: 'Untitled Project',
+        description: 'New music project'
+      });
+    }
+  }, [initializeAudioContext, generateSamples, currentProject, isAuthenticated, createProject]);
 
+  // Project tracks or default tracks
+  const tracks = currentProject?.tracks || [
+    {
+      id: '1',
+      name: 'Vocal',
+      instrument: 'Microphone',
+      volume: 75,
+      muted: false,
+      solo: false,
+      isRecording: false,
+      color: '#ef4444',
+      clips: [],
+      effects: []
+    },
+    {
+      id: '2',
+      name: 'Piano',
+      instrument: 'Grand Piano',
+      volume: 80,
+      muted: false,
+      solo: false,
+      isRecording: false,
+      color: '#3b82f6',
+      clips: [],
+      effects: []
+    }
+  ];
+
+  // Transport Controls
   const handlePlay = async () => {
     if (audioIsPlaying) {
       stopPlayback();
+      stopAllNotes();
     } else {
       try {
         await startPlayback(currentTime);
@@ -111,6 +157,7 @@ const Studio = () => {
 
   const handleStop = () => {
     stopPlayback();
+    stopAllNotes();
     setCurrentTime(0);
     toast({
       title: "Playback Stopped",
@@ -119,18 +166,19 @@ const Studio = () => {
   };
 
   const handleRecord = async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (audioIsRecording) {
       stopRecording();
       setRecordingTrack(null);
-      // Update track state
-      setStudioData(prev => ({
-        ...prev,
-        tracks: prev.tracks.map(track => 
-          track.id === recordingTrack 
-            ? { ...track, isRecording: false }
-            : track
-        )
-      }));
+      
+      if (currentProject) {
+        updateTrack(selectedTrack, { isRecording: false });
+      }
+      
       toast({
         title: "Recording Stopped",
         description: "Audio clip saved to timeline",
@@ -139,18 +187,14 @@ const Studio = () => {
       try {
         await startRecording(selectedTrack);
         setRecordingTrack(selectedTrack);
-        // Update track state
-        setStudioData(prev => ({
-          ...prev,
-          tracks: prev.tracks.map(track => 
-            track.id === selectedTrack 
-              ? { ...track, isRecording: true }
-              : track
-          )
-        }));
+        
+        if (currentProject) {
+          updateTrack(selectedTrack, { isRecording: true });
+        }
+        
         toast({
           title: "Recording Started",
-          description: `Recording to ${studioData.tracks.find(t => t.id === selectedTrack)?.name}`,
+          description: `Recording to ${tracks.find(t => t.id === selectedTrack)?.name}`,
         });
       } catch (error) {
         console.error('Recording error:', error);
@@ -170,79 +214,119 @@ const Studio = () => {
     }
   };
 
+  // Track Controls
   const toggleTrackMute = (trackId) => {
-    setStudioData(prev => ({
-      ...prev,
-      tracks: prev.tracks.map(track => 
-        track.id === trackId 
-          ? { ...track, muted: !track.muted }
-          : track
-      )
-    }));
-    
-    toast({
-      title: track.muted ? "Track Unmuted" : "Track Muted",
-      description: `${studioData.tracks.find(t => t.id === trackId)?.name}`,
-    });
+    const track = tracks.find(t => t.id === trackId);
+    if (track && currentProject) {
+      updateTrack(trackId, { muted: !track.muted });
+      toast({
+        title: track.muted ? "Track Unmuted" : "Track Muted",
+        description: track.name,
+      });
+    }
   };
 
   const toggleTrackSolo = (trackId) => {
-    setStudioData(prev => ({
-      ...prev,
-      tracks: prev.tracks.map(track => 
-        track.id === trackId 
-          ? { ...track, solo: !track.solo }
-          : track
-      )
-    }));
+    const track = tracks.find(t => t.id === trackId);
+    if (track && currentProject) {
+      updateTrack(trackId, { solo: !track.solo });
+    }
   };
 
   const updateTrackVolume = (trackId, volume) => {
-    setStudioData(prev => ({
-      ...prev,
-      tracks: prev.tracks.map(track => 
-        track.id === trackId 
-          ? { ...track, volume: volume[0] }
-          : track
-      )
-    }));
+    if (currentProject) {
+      updateTrack(trackId, { volume: volume[0] });
+    }
   };
 
   const addNewTrack = () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (!currentProject) {
+      toast({
+        title: "No Project",
+        description: "Please create a project first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
-    const newTrack = {
-      id: String(studioData.tracks.length + 1),
-      name: `Track ${studioData.tracks.length + 1}`,
+    const newTrackData = {
+      name: `Track ${tracks.length + 1}`,
       instrument: 'Audio',
       volume: 75,
-      muted: false,
-      solo: false,
-      isRecording: false,
-      color: colors[studioData.tracks.length % colors.length],
-      clips: []
+      color: colors[tracks.length % colors.length]
     };
-    
-    setStudioData(prev => ({
-      ...prev,
-      tracks: [...prev.tracks, newTrack]
-    }));
 
+    addTrack(newTrackData);
     toast({
       title: "Track Added",
-      description: `${newTrack.name} created`,
+      description: `${newTrackData.name} created`,
     });
   };
 
-  const deleteTrack = (trackId) => {
-    setStudioData(prev => ({
-      ...prev,
-      tracks: prev.tracks.filter(track => track.id !== trackId)
-    }));
-    
-    toast({
-      title: "Track Deleted",
-      description: "Track and all clips removed",
-    });
+  const deleteSelectedTrack = (trackId) => {
+    if (currentProject) {
+      projectDeleteTrack(trackId);
+      toast({
+        title: "Track Deleted",
+        description: "Track and all clips removed",
+      });
+    }
+  };
+
+  const handleInstrumentSelect = (instrumentId) => {
+    setActiveInstrument(instrumentId);
+    const instrument = availableInstruments.find(inst => inst.id === instrumentId);
+    if (instrument && instrument.presets.length > 0) {
+      setSelectedPreset(instrument.presets[0]);
+    }
+  };
+
+  const handlePresetSelect = (preset) => {
+    setSelectedPreset(preset);
+  };
+
+  const handleNotePlay = (note, velocity = 100) => {
+    const preset = selectedPreset || availableInstruments.find(inst => inst.id === activeInstrument)?.presets[0];
+    playNote(activeInstrument, note, velocity, preset);
+  };
+
+  const handleNoteStop = (noteKey) => {
+    stopNote(noteKey);
+  };
+
+  const handleSamplePlay = (sampleId) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    playSample(sampleId);
+  };
+
+  const handleProjectSave = async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    try {
+      await saveProject();
+      toast({
+        title: "Project Saved",
+        description: "All changes saved successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Save Failed",
+        description: "Unable to save project",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatTime = (seconds) => {
@@ -266,14 +350,16 @@ const Studio = () => {
 
   return (
     <div className="min-h-screen bg-[#1a1a1b] text-white flex flex-col">
-      {/* Header exatamente como o BandLab original */}
+      {/* Header - BandLab Style */}
       <div className="bg-[#242529] border-b border-gray-800 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-base font-medium text-white">{studioData.currentProject.name}</h1>
+          <h1 className="text-base font-medium text-white">
+            {currentProject?.name || 'New Project'}
+          </h1>
           <div className="flex items-center space-x-4 text-sm text-gray-400">
             <span>BPM: {bpm}</span>
-            <span>Key: {studioData.currentProject.key}</span>
-            <span>4/4</span>
+            <span>Key: {currentProject?.key || 'C Major'}</span>
+            <span>{currentProject?.time_signature || '4/4'}</span>
             <div className="flex items-center space-x-1">
               <Users className="w-3 h-3" />
               <span>{onlineUsers.length} collaborators</span>
@@ -282,6 +368,18 @@ const Studio = () => {
         </div>
         
         <div className="flex items-center space-x-2">
+          {!isAuthenticated && (
+            <Button 
+              onClick={() => setShowAuthModal(true)}
+              variant="ghost" 
+              size="sm" 
+              className="text-gray-300 hover:text-white hover:bg-gray-700 h-8"
+            >
+              <LogIn className="w-4 h-4 mr-1" />
+              Login
+            </Button>
+          )}
+          
           <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-gray-700 h-8">
             <MessageSquare className="w-4 h-4 mr-1" />
             Chat
@@ -294,13 +392,19 @@ const Studio = () => {
             <Download className="w-4 h-4 mr-1" />
             Export
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-gray-700 h-8">
+          <Button 
+            onClick={handleProjectSave}
+            variant="ghost" 
+            size="sm" 
+            className="text-gray-300 hover:text-white hover:bg-gray-700 h-8"
+          >
             <Save className="w-4 h-4 mr-1" />
             Save
           </Button>
           <Button 
             className="bg-[#ff4500] hover:bg-[#ff5722] text-white h-8"
             size="sm"
+            disabled={!isAuthenticated}
           >
             <Share2 className="w-4 h-4 mr-1" />
             Publish
@@ -308,7 +412,7 @@ const Studio = () => {
         </div>
       </div>
 
-      {/* Transport Controls - Funcionais */}
+      {/* Transport Controls */}
       <div className="bg-[#242529] border-b border-gray-800 px-6 py-4">
         <div className="flex items-center justify-center space-x-3">
           <Button
@@ -375,12 +479,24 @@ const Studio = () => {
             <Clock className="w-4 h-4 text-gray-400" />
             <span className="text-sm text-gray-400">Click</span>
           </div>
+
+          <div className="flex items-center space-x-2 ml-4">
+            <span className="text-sm text-gray-400">BPM:</span>
+            <Input
+              type="number"
+              value={bpm}
+              onChange={(e) => setBpm(parseInt(e.target.value) || 120)}
+              className="w-16 h-8 bg-[#1a1a1b] border-gray-700 text-white text-center"
+              min="60"
+              max="200"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Main Layout - Três painéis funcionais */}
+      {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Tracks Mixer Funcional */}
+        {/* Left Panel - Tracks Mixer */}
         <div className="w-64 bg-[#242529] border-r border-gray-800 flex flex-col">
           <div className="p-3 border-b border-gray-800">
             <div className="flex items-center justify-between">
@@ -397,7 +513,7 @@ const Studio = () => {
           </div>
           
           <div className="flex-1 overflow-y-auto">
-            {studioData.tracks.map((track) => (
+            {tracks.map((track) => (
               <div 
                 key={track.id}
                 className={`p-3 border-b border-gray-800 hover:bg-[#2a2a2e] cursor-pointer transition-colors ${
@@ -415,12 +531,9 @@ const Studio = () => {
                     <Input
                       value={track.name}
                       onChange={(e) => {
-                        setStudioData(prev => ({
-                          ...prev,
-                          tracks: prev.tracks.map(t => 
-                            t.id === track.id ? { ...t, name: e.target.value } : t
-                          )
-                        }));
+                        if (currentProject) {
+                          updateTrack(track.id, { name: e.target.value });
+                        }
                       }}
                       className="bg-transparent border-none p-0 h-auto text-sm font-medium text-white w-20"
                     />
@@ -439,7 +552,7 @@ const Studio = () => {
                     <Button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteTrack(track.id);
+                        deleteSelectedTrack(track.id);
                       }}
                       variant="ghost" 
                       size="sm"
@@ -452,7 +565,7 @@ const Studio = () => {
                 
                 <div className="text-xs text-gray-400 mb-3">{track.instrument}</div>
                 
-                {/* Track Controls Funcionais */}
+                {/* Track Controls */}
                 <div className="flex items-center space-x-1 mb-3">
                   <Button
                     onClick={(e) => {
@@ -497,7 +610,7 @@ const Studio = () => {
                   </Button>
                 </div>
                 
-                {/* Volume Control Funcional */}
+                {/* Volume Control */}
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <Volume2 className="w-3 h-3 text-gray-500" />
@@ -526,18 +639,23 @@ const Studio = () => {
                   </div>
                 </div>
                 
-                {/* Clip Count */}
-                <div className="mt-2 text-xs text-gray-500">
-                  {getTrackClips(track.id).length} clips
+                {/* Clip Count and Effects */}
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    {getTrackClips(track.id).length} clips
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {track.effects?.length || 0} FX
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Center Panel - Timeline Funcional */}
+        {/* Center Panel - Timeline */}
         <Timeline 
-          tracks={studioData.tracks}
+          tracks={tracks}
           currentTime={currentTime}
           isPlaying={audioIsPlaying}
           onSeek={handleSeek}
@@ -549,145 +667,250 @@ const Studio = () => {
           generateWaveform={generateWaveform}
         />
 
-        {/* Right Panel - Browser (igual ao anterior) */}
-        <div className="w-72 bg-[#242529] border-l border-gray-800">
-          <Tabs defaultValue="sounds" className="h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-3 bg-[#2a2a2e] border-b border-gray-800 rounded-none h-10">
+        {/* Right Panel - Browser with Advanced Features */}
+        <div className="w-80 bg-[#242529] border-l border-gray-800">
+          <Tabs defaultValue="instruments" className="h-full flex flex-col">
+            <TabsList className="grid w-full grid-cols-4 bg-[#2a2a2e] border-b border-gray-800 rounded-none h-10">
               <TabsTrigger 
-                value="sounds" 
+                value="instruments" 
                 className="data-[state=active]:bg-[#ff4500] data-[state=active]:text-white text-xs text-gray-400"
               >
-                Sounds
+                <Piano className="w-3 h-3 mr-1" />
+                Instruments
               </TabsTrigger>
               <TabsTrigger 
-                value="loops" 
+                value="samples" 
                 className="data-[state=active]:bg-[#ff4500] data-[state=active]:text-white text-xs text-gray-400"
               >
-                Loops
+                <FileAudio className="w-3 h-3 mr-1" />
+                Samples
               </TabsTrigger>
               <TabsTrigger 
-                value="fx" 
+                value="effects" 
                 className="data-[state=active]:bg-[#ff4500] data-[state=active]:text-white text-xs text-gray-400"
               >
-                FX
+                <Sliders className="w-3 h-3 mr-1" />
+                Effects
+              </TabsTrigger>
+              <TabsTrigger 
+                value="mixer" 
+                className="data-[state=active]:bg-[#ff4500] data-[state=active]:text-white text-xs text-gray-400"
+              >
+                <Layers3 className="w-3 h-3 mr-1" />
+                Mixer
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="sounds" className="flex-1 p-4 space-y-3 overflow-y-auto">
-              <h4 className="text-sm font-medium text-gray-300 mb-3">INSTRUMENTS</h4>
-              
-              {[
-                { name: 'Grand Piano', category: 'Piano', color: 'bg-blue-500', icon: Piano },
-                { name: 'Synth Bass', category: 'Bass', color: 'bg-purple-500', icon: Waves },
-                { name: 'Drums', category: 'Percussion', color: 'bg-red-500', icon: Music },
-                { name: 'Acoustic Guitar', category: 'Strings', color: 'bg-orange-500', icon: Music },
-                { name: 'Lead Synth', category: 'Lead', color: 'bg-green-500', icon: Zap },
-                { name: 'String Section', category: 'Orchestra', color: 'bg-yellow-500', icon: Music },
-              ].map((instrument, i) => {
-                const Icon = instrument.icon;
-                return (
-                  <div 
-                    key={i}
-                    className="flex items-center p-3 bg-[#2a2a2e] rounded hover:bg-[#333338] cursor-pointer transition-colors border border-gray-700"
-                  >
-                    <div className={`w-8 h-8 ${instrument.color} rounded flex items-center justify-center mr-3`}>
-                      <Icon className="w-4 h-4 text-white" />
+            {/* Instruments Tab */}
+            <TabsContent value="instruments" className="flex-1 flex flex-col overflow-hidden">
+              <div className="p-4">
+                <h4 className="text-sm font-medium text-gray-300 mb-3">VIRTUAL INSTRUMENTS</h4>
+                
+                <div className="space-y-2 mb-4">
+                  {availableInstruments.map((instrument) => (
+                    <div 
+                      key={instrument.id}
+                      className={`flex items-center p-3 rounded cursor-pointer transition-colors border ${
+                        activeInstrument === instrument.id 
+                          ? 'bg-[#ff4500]/20 border-[#ff4500]' 
+                          : 'bg-[#2a2a2e] border-gray-700 hover:bg-[#333338]'
+                      }`}
+                      onClick={() => handleInstrumentSelect(instrument.id)}
+                    >
+                      <div className={`w-8 h-8 rounded flex items-center justify-center mr-3`} style={{ backgroundColor: instrument.color }}>
+                        <Music className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-white font-medium">{instrument.name}</div>
+                        <div className="text-xs text-gray-400">{instrument.category}</div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="text-sm text-white font-medium">{instrument.name}</div>
-                      <div className="text-xs text-gray-400">{instrument.category}</div>
-                    </div>
-                    <Button variant="ghost" size="sm" className="w-6 h-6 p-0 text-gray-400 hover:text-white">
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </TabsContent>
-
-            <TabsContent value="loops" className="flex-1 p-4 space-y-3 overflow-y-auto">
-              <h4 className="text-sm font-medium text-gray-300 mb-3">SAMPLE PACKS</h4>
-              
-              {[
-                'Hip Hop Essentials',
-                'Electronic Vibes',
-                'Lo-Fi Chill',
-                'Trap Beats',
-                'House Foundation',
-                'Ambient Textures'
-              ].map((pack, i) => (
-                <div 
-                  key={i}
-                  className="p-3 bg-[#2a2a2e] rounded hover:bg-[#333338] cursor-pointer transition-colors border border-gray-700"
-                >
-                  <div className="text-sm text-white font-medium mb-1">{pack}</div>
-                  <div className="text-xs text-gray-400">120 BPM • 8 samples</div>
-                  <div className="flex items-center justify-between mt-2">
-                    <Badge variant="outline" className="border-gray-600 text-xs">Hip Hop</Badge>
-                    <Button variant="ghost" size="sm" className="w-6 h-6 p-0 text-gray-400 hover:text-white">
-                      <Play className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
+
+                {/* Presets */}
+                {activeInstrument && availableInstruments.find(inst => inst.id === activeInstrument)?.presets && (
+                  <div className="mb-4">
+                    <h5 className="text-xs font-medium text-gray-400 mb-2">PRESETS</h5>
+                    <div className="space-y-1">
+                      {availableInstruments.find(inst => inst.id === activeInstrument)?.presets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          onClick={() => handlePresetSelect(preset)}
+                          className={`w-full text-left px-2 py-1 text-xs rounded transition-colors ${
+                            selectedPreset?.id === preset.id 
+                              ? 'bg-[#ff4500] text-white' 
+                              : 'text-gray-300 hover:bg-[#333338]'
+                          }`}
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Virtual Keyboard Toggle */}
+                <Button
+                  onClick={() => setShowKeyboard(!showKeyboard)}
+                  className={`w-full ${showKeyboard ? 'bg-[#ff4500]' : 'bg-gray-700 hover:bg-gray-600'}`}
+                >
+                  <Piano className="w-4 h-4 mr-2" />
+                  {showKeyboard ? 'Hide' : 'Show'} Keyboard
+                </Button>
+              </div>
             </TabsContent>
 
-            <TabsContent value="fx" className="flex-1 p-4 space-y-3 overflow-y-auto">
-              <h4 className="text-sm font-medium text-gray-300 mb-3">EFFECTS</h4>
+            {/* Samples Tab */}
+            <TabsContent value="samples" className="flex-1 overflow-y-auto">
+              <SampleBrowser 
+                availablePacks={availablePacks}
+                selectedPack={selectedSamplePack}
+                onPackSelect={setSelectedSamplePack}
+                onSamplePlay={handleSamplePlay}
+                getSamples={getSamples}
+              />
+            </TabsContent>
+
+            {/* Effects Tab */}
+            <TabsContent value="effects" className="flex-1 overflow-y-auto">
+              <EffectsRack 
+                availableEffects={availableEffects}
+                selectedTrack={selectedTrack}
+                tracks={tracks}
+                onEffectAdd={(effectData) => {
+                  if (currentProject) {
+                    const track = tracks.find(t => t.id === selectedTrack);
+                    const updatedEffects = [...(track?.effects || []), effectData];
+                    updateTrack(selectedTrack, { effects: updatedEffects });
+                  }
+                }}
+                onEffectUpdate={(effectIndex, paramName, value) => {
+                  if (currentProject) {
+                    const track = tracks.find(t => t.id === selectedTrack);
+                    if (track?.effects?.[effectIndex]) {
+                      const updatedEffects = [...track.effects];
+                      updatedEffects[effectIndex] = {
+                        ...updatedEffects[effectIndex],
+                        parameters: updatedEffects[effectIndex].parameters.map(param =>
+                          param.name === paramName ? { ...param, value } : param
+                        )
+                      };
+                      updateTrack(selectedTrack, { effects: updatedEffects });
+                    }
+                  }
+                }}
+              />
+            </TabsContent>
+
+            {/* Mixer Tab */}
+            <TabsContent value="mixer" className="flex-1 p-4 overflow-y-auto">
+              <h4 className="text-sm font-medium text-gray-300 mb-3">MASTER MIXER</h4>
               
-              {[
-                { name: 'Reverb', type: 'Spatial', active: false },
-                { name: 'Delay', type: 'Spatial', active: true },
-                { name: 'Compressor', type: 'Dynamics', active: true },
-                { name: 'EQ', type: 'Filter', active: false },
-                { name: 'Distortion', type: 'Drive', active: false },
-                { name: 'Chorus', type: 'Modulation', active: false }
-              ].map((fx, i) => (
-                <Card key={i} className="bg-[#2a2a2e] border-gray-700">
+              {/* Master Volume */}
+              <div className="space-y-4">
+                <Card className="bg-[#2a2a2e] border-gray-700">
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <div className="text-sm text-white font-medium">{fx.name}</div>
-                        <div className="text-xs text-gray-400">{fx.type}</div>
-                      </div>
-                      <Switch checked={fx.active} />
+                      <span className="text-sm text-white font-medium">Master Volume</span>
+                      <span className="text-xs text-gray-400">{Math.round(masterVolume)}%</span>
                     </div>
-                    
-                    {fx.active && (
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-400 w-12">Mix:</span>
-                          <Slider value={[30]} max={100} className="flex-1" />
-                          <span className="text-xs text-gray-400 w-6">30</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-400 w-12">Level:</span>
-                          <Slider value={[75]} max={100} className="flex-1" />
-                          <span className="text-xs text-gray-400 w-6">75</span>
-                        </div>
-                      </div>
-                    )}
+                    <Slider
+                      value={[masterVolume]}
+                      onValueChange={(value) => updateMasterVolume(value[0])}
+                      max={100}
+                      step={1}
+                      className="w-full"
+                    />
                   </CardContent>
                 </Card>
-              ))}
+
+                {/* Track Volumes */}
+                {tracks.map((track) => (
+                  <Card key={track.id} className="bg-[#2a2a2e] border-gray-700">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: track.color }}
+                          />
+                          <span className="text-sm text-white font-medium">{track.name}</span>
+                        </div>
+                        <span className="text-xs text-gray-400">{track.volume}%</span>
+                      </div>
+                      <Slider
+                        value={[track.volume]}
+                        onValueChange={(value) => updateTrackVolume(track.id, value)}
+                        max={100}
+                        step={1}
+                        className="w-full"
+                      />
+                      
+                      {/* Mute/Solo buttons */}
+                      <div className="flex items-center space-x-1 mt-2">
+                        <Button
+                          onClick={() => toggleTrackMute(track.id)}
+                          className={`w-8 h-6 p-0 text-xs font-bold rounded ${
+                            track.muted 
+                              ? 'bg-red-600 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                          }`}
+                        >
+                          M
+                        </Button>
+                        <Button
+                          onClick={() => toggleTrackSolo(track.id)}
+                          className={`w-8 h-6 p-0 text-xs font-bold rounded ${
+                            track.solo 
+                              ? 'bg-yellow-600 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                          }`}
+                        >
+                          S
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
       </div>
 
-      {/* Status Bar Funcional */}
+      {/* Virtual Keyboard */}
+      {showKeyboard && (
+        <div className="bg-[#242529] border-t border-gray-800">
+          <VirtualKeyboard 
+            onNotePlay={handleNotePlay}
+            onNoteStop={handleNoteStop}
+            keyboardMap={keyboardMap}
+            activeInstrument={activeInstrument}
+          />
+        </div>
+      )}
+
+      {/* Status Bar */}
       <div className="bg-[#242529] border-t border-gray-800 px-4 py-2">
         <div className="flex items-center justify-between text-xs text-gray-400">
           <div className="flex items-center space-x-4">
             <span>CPU: 15%</span>
             <span>44.1 kHz</span>
             <span>Latency: 5.8ms</span>
-            <span>Tracks: {studioData.tracks.length}</span>
-            <span>Clips: {studioData.tracks.reduce((total, track) => total + getTrackClips(track.id).length, 0)}</span>
+            <span>Tracks: {tracks.length}</span>
+            <span>Clips: {tracks.reduce((total, track) => total + getTrackClips(track.id).length, 0)}</span>
+            <span>Instrument: {availableInstruments.find(inst => inst.id === activeInstrument)?.name || 'None'}</span>
             {onlineUsers.length > 0 && (
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-green-400">{onlineUsers.length} online</span>
+              </div>
+            )}
+            {user && (
+              <div className="flex items-center space-x-1">
+                <User className="w-3 h-3" />
+                <span className="text-white">{user.display_name}</span>
               </div>
             )}
           </div>
@@ -711,6 +934,12 @@ const Studio = () => {
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
     </div>
   );
 };

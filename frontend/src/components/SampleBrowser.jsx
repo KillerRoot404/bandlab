@@ -66,23 +66,18 @@ const SampleBrowser = ({ availablePacks, selectedPack, onPackSelect, onSamplePla
 
   const handlePlaySample = async (sample) => {
     try {
-      // Stop all currently playing samples
-      stopAllSamples();
-      
       if (playingId === sample.id) {
         setPlayingId(null);
         return;
       }
 
-      const playback = await playSample(sample, { volume: 0.7 });
-      if (playback) {
+      if (onSamplePlay) {
+        onSamplePlay(sample.id);
         setPlayingId(sample.id);
         
         // Auto-stop after sample duration
         setTimeout(() => {
-          if (playingId === sample.id) {
-            setPlayingId(null);
-          }
+          setPlayingId(null);
         }, sample.duration * 1000);
       }
     } catch (error) {

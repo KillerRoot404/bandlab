@@ -53,10 +53,13 @@ class BandLabAPITester:
         
         # Generate unique test data
         timestamp = str(int(datetime.now().timestamp()))
+        self.test_username = f"testuser_{timestamp}"
+        self.test_password = "SecurePassword123!"
+        
         test_data = {
-            "username": f"testuser_{timestamp}",
+            "username": self.test_username,
             "email": f"test_{timestamp}@bandlab.com",
-            "password": "SecurePassword123!",
+            "password": self.test_password,
             "display_name": f"Test User {timestamp}"
         }
         

@@ -23,12 +23,12 @@ import {
   Settings, Save, Share2, Plus, Trash2, SkipBack, SkipForward, Repeat, Shuffle,
   Users, Upload, Download, MessageSquare, Clock, Grid3X3, Music, Waves, Zap,
   Filter, Activity, MonitorSpeaker, Mic2, Target, Volume1, Copy, Edit3, MoreHorizontal,
-  LogIn, User, Maximize2, Minimize2, Sliders, FileAudio, Layers3
+  LogIn, User, Maximize2, Minimize2, Sliders, FileAudio, Layers3, AlertCircle
 } from 'lucide-react';
 
 const Studio = () => {
   const { toast } = useToast();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   
   // Audio Engine Hook
   const {

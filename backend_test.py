@@ -9,6 +9,8 @@ import json
 import uuid
 from datetime import datetime
 import os
+import io
+import tempfile
 from dotenv import load_dotenv
 
 # Load environment variables

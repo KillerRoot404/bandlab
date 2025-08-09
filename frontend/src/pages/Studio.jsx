@@ -116,15 +116,24 @@ const Studio = () => {
   useEffect(() => {
     initializeAudioContext();
     generateSamples();
-    
-    // Create default project if none exists
-    if (!currentProject && isAuthenticated) {
+  }, [initializeAudioContext, generateSamples]);
+
+  // Load user projects when authenticated
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      loadProjects();
+    }
+  }, [isAuthenticated, authLoading, loadProjects]);
+
+  // Create default project if user is authenticated but has no projects
+  useEffect(() => {
+    if (isAuthenticated && !projectsLoading && projects.length === 0 && !currentProject) {
       createProject({
         name: 'Untitled Project',
         description: 'New music project'
       });
     }
-  }, [initializeAudioContext, generateSamples, currentProject, isAuthenticated, createProject]);
+  }, [isAuthenticated, projects, projectsLoading, currentProject, createProject]);
 
   // Project tracks or default tracks
   const tracks = currentProject?.tracks || [

@@ -403,9 +403,379 @@ DEFAULT_SAMPLE_PACKS = [
         "samples_count": 15
     }
 ]
+# Authentication Routes
+@api_router.post("/auth/register", response_model=Dict[str, Any])
+async def register_user(user_data: UserCreate):
+    # Check if user already exists
+    existing_user = await db.users.find_one({"$or": [{"username": user_data.username}, {"email": user_data.email}]})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+    
+    # Create new user
+    hashed_password = hash_password(user_data.password)
+    user = User(
+        username=user_data.username,
+        email=user_data.email,
+        display_name=user_data.display_name
+    )
+    
+    # Save to database
+    user_dict = user.dict()
+    user_dict['password'] = hashed_password
+    await db.users.insert_one(user_dict)
+    
+    # Create JWT token
+    token = create_jwt_token(user.id)
+    
+    return {"user": user.dict(), "token": token}
+
+@api_router.post("/auth/login", response_model=Dict[str, Any])
+async def login_user(login_data: UserLogin):
+    # Find user
+    user = await db.users.find_one({"username": login_data.username})
+    if not user or not verify_password(login_data.password, user['password']):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Create JWT token
+    token = create_jwt_token(user['id'])
+    
+    # Remove password from response
+    del user['password']
+    
+    return {"user": user, "token": token}
+
+@api_router.get("/auth/me", response_model=User)
+async def get_current_user_info(current_user_id: str = Depends(get_current_user)):
+    user = await db.users.find_one({"id": current_user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    del user['password']
+    return User(**user)
+
+@api_router.put("/auth/me", response_model=User)
+async def update_current_user(user_update: UserUpdate, current_user_id: str = Depends(get_current_user)):
+    update_data = {k: v for k, v in user_update.dict().items() if v is not None}
+    
+    if update_data:
+        await db.users.update_one({"id": current_user_id}, {"$set": update_data})
+    
+    user = await db.users.find_one({"id": current_user_id})
+    del user['password']
+    return User(**user)
+
+# Project Routes
+@api_router.post("/projects", response_model=Project)
+async def create_project(project_data: ProjectCreate, current_user_id: str = Depends(get_current_user)):
+    project = Project(
+        name=project_data.name,
+        description=project_data.description,
+        owner_id=current_user_id,
+        is_public=project_data.is_public
+    )
+    
+    await db.projects.insert_one(project.dict())
+    return project
+
+@api_router.get("/projects", response_model=List[Project])
+async def get_user_projects(current_user_id: str = Depends(get_current_user)):
+    projects = await db.projects.find({
+        "$or": [
+            {"owner_id": current_user_id},
+            {"collaborators": current_user_id}
+        ]
+    }).to_list(100)
+    
+    return [Project(**project) for project in projects]
+
+@api_router.get("/projects/public", response_model=List[Project])
+async def get_public_projects(limit: int = 20):
+    projects = await db.projects.find({"is_public": True}).limit(limit).to_list(limit)
+    return [Project(**project) for project in projects]
+
+@api_router.get("/projects/{project_id}", response_model=Project)
+async def get_project(project_id: str, current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user has access
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []) and not project.get('is_public', False):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return Project(**project)
+
+@api_router.put("/projects/{project_id}", response_model=Project)
+async def update_project(project_id: str, project_update: ProjectUpdate, current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user is owner or collaborator
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    update_data = {k: v for k, v in project_update.dict().items() if v is not None}
+    update_data['updated_at'] = datetime.utcnow()
+    
+    await db.projects.update_one({"id": project_id}, {"$set": update_data})
+    
+    updated_project = await db.projects.find_one({"id": project_id})
+    return Project(**updated_project)
+
+@api_router.delete("/projects/{project_id}")
+async def delete_project(project_id: str, current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Only owner can delete
+    if project['owner_id'] != current_user_id:
+        raise HTTPException(status_code=403, detail="Only owner can delete project")
+    
+    await db.projects.delete_one({"id": project_id})
+    return {"message": "Project deleted successfully"}
+
+# Track Routes
+@api_router.post("/projects/{project_id}/tracks", response_model=Track)
+async def add_track_to_project(project_id: str, track_data: Dict[str, Any], current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check access
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    track = Track(**track_data)
+    
+    # Add track to project
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$push": {"tracks": track.dict()}, "$set": {"updated_at": datetime.utcnow()}}
+    )
+    
+    return track
+
+@api_router.put("/projects/{project_id}/tracks/{track_id}", response_model=Track)
+async def update_track(project_id: str, track_id: str, track_data: Dict[str, Any], current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check access
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Update specific track
+    tracks = project.get('tracks', [])
+    for i, track in enumerate(tracks):
+        if track['id'] == track_id:
+            tracks[i].update(track_data)
+            break
+    else:
+        raise HTTPException(status_code=404, detail="Track not found")
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"tracks": tracks, "updated_at": datetime.utcnow()}}
+    )
+    
+    updated_track = next(track for track in tracks if track['id'] == track_id)
+    return Track(**updated_track)
+
+@api_router.delete("/projects/{project_id}/tracks/{track_id}")
+async def delete_track(project_id: str, track_id: str, current_user_id: str = Depends(get_current_user)):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check access
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Remove track
+    tracks = [track for track in project.get('tracks', []) if track['id'] != track_id]
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"tracks": tracks, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"message": "Track deleted successfully"}
+
+# Audio Upload Routes
+@api_router.post("/audio/upload")
+async def upload_audio(
+    file: UploadFile = File(...),
+    project_id: str = Form(...),
+    track_id: str = Form(...),
+    current_user_id: str = Depends(get_current_user)
+):
+    # Validate file type
+    if not file.content_type.startswith('audio/'):
+        raise HTTPException(status_code=400, detail="File must be an audio file")
+    
+    # Check project access
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Save file
+    file_path = await save_uploaded_file(file)
+    
+    # Create audio clip
+    clip = AudioClip(
+        name=file.filename or "Uploaded Audio",
+        start_time=0.0,
+        duration=0.0,  # Will be calculated on frontend
+        file_path=file_path
+    )
+    
+    return {"clip": clip.dict(), "message": "Audio uploaded successfully"}
+
+# Effects Routes
+@api_router.get("/effects", response_model=List[Dict[str, Any]])
+async def get_available_effects():
+    return DEFAULT_EFFECTS
+
+@api_router.post("/projects/{project_id}/tracks/{track_id}/effects")
+async def add_effect_to_track(
+    project_id: str,
+    track_id: str,
+    effect_data: Dict[str, Any],
+    current_user_id: str = Depends(get_current_user)
+):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check access
+    if project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Find and update track
+    tracks = project.get('tracks', [])
+    for track in tracks:
+        if track['id'] == track_id:
+            if 'effects' not in track:
+                track['effects'] = []
+            track['effects'].append(effect_data)
+            break
+    else:
+        raise HTTPException(status_code=404, detail="Track not found")
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"tracks": tracks, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"message": "Effect added successfully"}
+
+# Instruments Routes
+@api_router.get("/instruments", response_model=List[Dict[str, Any]])
+async def get_available_instruments():
+    return DEFAULT_INSTRUMENTS
+
+# Sample Packs Routes
+@api_router.get("/samples/packs", response_model=List[Dict[str, Any]])
+async def get_sample_packs():
+    return DEFAULT_SAMPLE_PACKS
+
+# Social Features Routes
+@api_router.post("/projects/{project_id}/comments", response_model=Comment)
+async def add_comment(
+    project_id: str,
+    comment_data: Dict[str, Any],
+    current_user_id: str = Depends(get_current_user)
+):
+    # Check if project exists and is accessible
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if not project.get('is_public', False) and project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    comment = Comment(
+        user_id=current_user_id,
+        project_id=project_id,
+        content=comment_data['content'],
+        timestamp=comment_data.get('timestamp', 0.0)
+    )
+    
+    await db.comments.insert_one(comment.dict())
+    return comment
+
+@api_router.get("/projects/{project_id}/comments", response_model=List[Comment])
+async def get_project_comments(project_id: str, current_user_id: str = Depends(get_current_user)):
+    # Check project access
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if not project.get('is_public', False) and project['owner_id'] != current_user_id and current_user_id not in project.get('collaborators', []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    comments = await db.comments.find({"project_id": project_id}).to_list(100)
+    return [Comment(**comment) for comment in comments]
+
+@api_router.post("/projects/{project_id}/like")
+async def like_project(project_id: str, current_user_id: str = Depends(get_current_user)):
+    # Check if already liked
+    existing_like = await db.likes.find_one({"user_id": current_user_id, "project_id": project_id})
+    if existing_like:
+        # Unlike
+        await db.likes.delete_one({"user_id": current_user_id, "project_id": project_id})
+        return {"message": "Project unliked"}
+    else:
+        # Like
+        like = Like(user_id=current_user_id, project_id=project_id)
+        await db.likes.insert_one(like.dict())
+        return {"message": "Project liked"}
+
+@api_router.get("/projects/{project_id}/likes")
+async def get_project_likes(project_id: str):
+    likes_count = await db.likes.count_documents({"project_id": project_id})
+    return {"count": likes_count}
+
+# Collaboration Routes
+@api_router.post("/projects/{project_id}/collaborators")
+async def add_collaborator(
+    project_id: str,
+    collaborator_data: Dict[str, str],
+    current_user_id: str = Depends(get_current_user)
+):
+    project = await db.projects.find_one({"id": project_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Only owner can add collaborators
+    if project['owner_id'] != current_user_id:
+        raise HTTPException(status_code=403, detail="Only owner can add collaborators")
+    
+    # Find user by username
+    username = collaborator_data['username']
+    user = await db.users.find_one({"username": username})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Add to collaborators
+    if user['id'] not in project.get('collaborators', []):
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$push": {"collaborators": user['id']}}
+        )
+    
+    return {"message": f"User {username} added as collaborator"}
+
+# Legacy Routes (for backwards compatibility)
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "BandLab DAW API v2.0 - Ready for music creation!"}
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):

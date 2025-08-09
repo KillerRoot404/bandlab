@@ -453,6 +453,8 @@ async def get_current_user_info(current_user_id: str = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="User not found")
     
     del user['password']
+    if '_id' in user:
+        del user['_id']
     return User(**user)
 
 @api_router.put("/auth/me", response_model=User)

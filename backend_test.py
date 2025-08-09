@@ -27,6 +27,7 @@ class BandLabAPITester:
         self.test_user_id = None
         self.test_project_id = None
         self.test_track_id = None
+        self.test_file_id = None
         self.test_results = []
         self.test_username = None
         self.test_password = None

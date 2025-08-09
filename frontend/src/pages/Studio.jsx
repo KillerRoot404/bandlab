@@ -83,6 +83,8 @@ const Studio = () => {
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [selectedSamplePack, setSelectedSamplePack] = useState('hip_hop_essentials');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Real-time collaboration mock
   const [onlineUsers] = useState([

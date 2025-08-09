@@ -68,8 +68,8 @@ const Studio = () => {
     loadProject, 
     saveProject, 
     updateProject,
-    addTrack,
-    updateTrack,
+    addTrack: projectAddTrack,
+    updateTrack: projectUpdateTrack,
     deleteTrack: projectDeleteTrack
   } = useProjects();
 

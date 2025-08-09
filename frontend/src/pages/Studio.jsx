@@ -218,7 +218,7 @@ const Studio = () => {
   const toggleTrackMute = (trackId) => {
     const track = tracks.find(t => t.id === trackId);
     if (track && currentProject) {
-      updateTrack(trackId, { muted: !track.muted });
+      projectUpdateTrack(currentProject.id, trackId, { muted: !track.muted });
       toast({
         title: track.muted ? "Track Unmuted" : "Track Muted",
         description: track.name,
@@ -229,13 +229,13 @@ const Studio = () => {
   const toggleTrackSolo = (trackId) => {
     const track = tracks.find(t => t.id === trackId);
     if (track && currentProject) {
-      updateTrack(trackId, { solo: !track.solo });
+      projectUpdateTrack(currentProject.id, trackId, { solo: !track.solo });
     }
   };
 
   const updateTrackVolume = (trackId, volume) => {
     if (currentProject) {
-      updateTrack(trackId, { volume: volume[0] });
+      projectUpdateTrack(currentProject.id, trackId, { volume: volume[0] });
     }
   };
 

@@ -759,24 +759,81 @@ const Studio = () => {
       </div>
 
       {/* Bottom Mixer */}
-      <Mixer
-        tracks={(currentProject?.tracks || []).map(t => ({ ...t, level: (trackLevels && trackLevels[t.id]) || 0 }))}
-        selectedTrack={selectedTrack}
-        onTrackSelect={setSelectedTrack}
-        onTrackMuteToggle={toggleTrackMute}
-        onTrackSoloToggle={toggleTrackSolo}
-        onTrackRecordToggle={(trackId) => {
-          if (!currentProject) return;
-          const track = (currentProject.tracks || []).find(t => t.id === trackId);
-          if (!track) return;
-          projectUpdateTrack(currentProject.id, trackId, { isRecording: !track.isRecording });
-        }}
-        onTrackVolumeChange={updateTrackVolume}
-        onTrackPanChange={updateTrackPan}
-        masterVolume={masterVolume}
-        onMasterVolumeChange={(v) => updateMasterVolume(Array.isArray(v) ? v[0] : v)}
-        masterLevel={typeof masterLevel === 'number' ? masterLevel : 0}
-      />
+      <div className="border-t border-gray-800">
+        {/* Mixer Mode Toggle */}
+        <div className="px-4 py-2 bg-[#0f0f11] border-b border-gray-800 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-400 uppercase tracking-wider">
+              {advancedMixerMode ? 'Advanced Mixer' : 'Simple Mixer'}
+            </span>
+            <Badge variant="secondary" className="text-xs">
+              {advancedMixerMode ? 'Professional' : 'Basic'}
+            </Badge>
+          </div>
+          <Button
+            onClick={() => setAdvancedMixerMode(!advancedMixerMode)}
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-white text-xs"
+          >
+            {advancedMixerMode ? (
+              <>
+                <ToggleLeft className="w-4 h-4 mr-1" />
+                Switch to Simple
+              </>
+            ) : (
+              <>
+                <ToggleRight className="w-4 h-4 mr-1" />
+                Switch to Advanced
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Render appropriate mixer */}
+        {advancedMixerMode ? (
+          <AdvancedMixer
+            tracks={(currentProject?.tracks || []).map(t => ({ ...t, level: (trackLevels && trackLevels[t.id]) || 0 }))}
+            selectedTrack={selectedTrack}
+            onTrackSelect={setSelectedTrack}
+            onTrackMuteToggle={toggleTrackMute}
+            onTrackSoloToggle={toggleTrackSolo}
+            onTrackRecordToggle={(trackId) => {
+              if (!currentProject) return;
+              const track = (currentProject.tracks || []).find(t => t.id === trackId);
+              if (!track) return;
+              projectUpdateTrack(currentProject.id, trackId, { isRecording: !track.isRecording });
+            }}
+            onTrackVolumeChange={updateTrackVolume}
+            onTrackPanChange={updateTrackPan}
+            masterVolume={masterVolume}
+            onMasterVolumeChange={(v) => updateMasterVolume(Array.isArray(v) ? v[0] : v)}
+            masterLevel={typeof masterLevel === 'number' ? masterLevel : 0}
+            audioContext={audioContext}
+            trackAudioSources={{}} // TODO: Connect real audio sources
+            masterAudioSource={masterGainNode}
+          />
+        ) : (
+          <Mixer
+            tracks={(currentProject?.tracks || []).map(t => ({ ...t, level: (trackLevels && trackLevels[t.id]) || 0 }))}
+            selectedTrack={selectedTrack}
+            onTrackSelect={setSelectedTrack}
+            onTrackMuteToggle={toggleTrackMute}
+            onTrackSoloToggle={toggleTrackSolo}
+            onTrackRecordToggle={(trackId) => {
+              if (!currentProject) return;
+              const track = (currentProject.tracks || []).find(t => t.id === trackId);
+              if (!track) return;
+              projectUpdateTrack(currentProject.id, trackId, { isRecording: !track.isRecording });
+            }}
+            onTrackVolumeChange={updateTrackVolume}
+            onTrackPanChange={updateTrackPan}
+            masterVolume={masterVolume}
+            onMasterVolumeChange={(v) => updateMasterVolume(Array.isArray(v) ? v[0] : v)}
+            masterLevel={typeof masterLevel === 'number' ? masterLevel : 0}
+          />
+        )}
+      </div>
 
       {/* Modals and status bar unchanged */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />

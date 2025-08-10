@@ -101,3 +101,80 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Avancei com 1-2-3 como você pediu, adicionando refinamentos em cada ponto:
+
+  Medidores mais realistas (peak hold/decay)
+  Engine (useAudioEngine):
+  Adicionei suavização com decaimento para os níveis: master e por track usam um smoothing simples (mantém o pico e decai gradualmente).
+  masterLevel e trackLevels agora são mais estáveis visualmente.
+  Mixer:
+  MasterStrip e ChannelStrip já exibem barras animadas, agora beneficiando da suavização.
+  Undo/Redo expandido para clips
+  Studio.jsx:
+  Ao mover um clip, só empilho um snapshot no final do arrasto (onMoveEnd), evitando poluir o histórico durante o drag.
+  Ao deletar clip, tiro snapshot antes.
+  Ao iniciar gravação (se não estava gravando), tiro snapshot para poder desfazer a inclusão do novo clip.
+  Timeline/AudioClip:
+  Prop onClipMoveEnd adicionada; AudioClip dispara ao terminar drag (mouse/touch).
+  Count-in com feedback melhor
+  Count-in já aguardava 1 compasso; adicionei um LED visual pulsando (indicador) quando a modal de export está aberta, e posso expandir para o transport na próxima rodada.
+  Mantido comportamento de count-in com o metrônomo; na próxima etapa posso torná-lo audível mesmo com metrônomo desligado e incluir seletor de 1/2 compassos.
+  Próximos passos sugeridos: A) Count-in LED no transport + seletor 1/2 compassos + audível com metrônomo OFF, B) Undo/Redo para add/delete track e add clip (uploads), C) Visual dos medidores com ticks e pico retido 0.5s.
+
+backend:
+  - task: "FastAPI base with /api prefix and Mongo persistence"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Endpoints implemented: GET /api/, POST /api/status, GET /api/status. Uses MONGO_URL and DB_NAME from backend/.env."
+  - task: "CORS configuration"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "CORS_ORIGINS=* via env; middleware added."
+
+frontend:
+  - task: "Base React app calls backend GET /api/ on load"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Axios request to REACT_APP_BACKEND_URL + /api runs in useEffect; console logs message."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Verify backend endpoints respond correctly and DB writes succeed"
+    - "Confirm CORS allows frontend origin"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Instalei dependências do backend e frontend, reiniciei serviços e estou pronto para testar o backend. O repositório atual não contém os componentes de áudio (useAudioEngine/Mixer/Studio) mencionados pelo usuário; preciso confirmar se devo importar o ZIP enviado e substituir/mesclar o frontend. Também preciso que o usuário escolha A/B/C para implementar na próxima iteração.

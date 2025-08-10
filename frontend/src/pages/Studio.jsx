@@ -173,6 +173,7 @@ const Studio = () => {
   
   // Advanced Mixer State
   const [advancedMixerMode, setAdvancedMixerMode] = useState(false);
+  const [showFeatureShowcase, setShowFeatureShowcase] = useState(true);
 
   // Live Export hook
   const { exportProject, isExporting, progress: exportProgress } = useLiveExport(

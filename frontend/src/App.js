@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import Track from './pages/Track';
 import Navbar from './components/Navbar';
 import './App.css';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
@@ -16,13 +17,16 @@ function App() {
       <div className="App min-h-screen bg-black text-white">
         <BrowserRouter>
           <Navbar />
-          <Routes>
-            <Route path="/" element={<Homepage />} />
-            <Route path="/studio" element={<Studio />} />
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/profile/:username" element={<Profile />} />
-            <Route path="/track/:id" element={<Track />} />
-          </Routes>
+          {/* ErrorBoundary envolve as rotas para capturar erros de UI (ex: insertBefore) */}
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Homepage />} />
+              <Route path="/studio" element={<Studio />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/profile/:username" element={<Profile />} />
+              <Route path="/track/:id" element={<Track />} />
+            </Routes>
+          </ErrorBoundary>
           <Toaster />
         </BrowserRouter>
       </div>

@@ -37,7 +37,10 @@ def test_get_root():
         
         # Check CORS headers
         cors_header = response.headers.get('Access-Control-Allow-Origin')
+        cors_credentials = response.headers.get('Access-Control-Allow-Credentials')
         print(f"   CORS Header: {cors_header}")
+        print(f"   CORS Credentials: {cors_credentials}")
+        print(f"   All Headers: {dict(response.headers)}")
         
         if response.status_code == 200:
             data = response.json()

@@ -244,6 +244,43 @@ const AdvancedChannelStrip = ({
               />
             </TabsContent>
 
+            <TabsContent value="automation" className="mt-2">
+              <div className="space-y-2">
+                <AutomationLane
+                  trackId={track.id}
+                  parameter="volume"
+                  parameterName="Volume"
+                  min={0}
+                  max={100}
+                  unit="%"
+                  automationData={[]}
+                  isVisible={true}
+                  isEnabled={true}
+                  onToggle={() => {}}
+                  onAutomationChange={() => {}}
+                  currentTime={0}
+                  duration={60}
+                  onToggleVisibility={() => setAutomationVisible(!automationVisible)}
+                />
+                <AutomationLane
+                  trackId={track.id}
+                  parameter="pan"
+                  parameterName="Pan"
+                  min={-100}
+                  max={100}
+                  unit=""
+                  automationData={[]}
+                  isVisible={false}
+                  isEnabled={false}
+                  onToggle={() => {}}
+                  onAutomationChange={() => {}}
+                  currentTime={0}
+                  duration={60}
+                  onToggleVisibility={() => {}}
+                />
+              </div>
+            </TabsContent>
+
             <TabsContent value="analyzer" className="mt-2">
               <SpectrumAnalyzer
                 audioContext={audioContext}

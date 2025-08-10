@@ -174,30 +174,6 @@ export const useAudioEngine = () => {
     }
   }, []);
 
-  // Count-in clicks regardless of metronome toggle
-  const playCountIn = useCallback(async ({ bars = 1, beatsPerBar = 4 } = {}) => {
-    const ctx = await initializeAudioContext();
-    if (!ctx) return;
-    // Ensure gain node exists
-    if (!metronomeGainNodeRef.current && masterGainNode) {
-      const mg = ctx.createGain();
-      mg.gain.value = metronomeVolume / 100;
-      mg.connect(masterGainNode);
-      metronomeGainNodeRef.current = mg;
-    }
-    const beatInterval = 60 / Math.max(1, bpm);
-    const totalBeats = Math.max(1, Math.round(bars)) * Math.max(1, Math.round(beatsPerBar));
-    let when = ctx.currentTime + 0.05;
-    for (let i = 0; i < totalBeats; i++) {
-      const accent = (i % beatsPerBar) === 0;
-      scheduleMetronomeClick(when, accent);
-      when += beatInterval;
-    }
-    // Wait until the last click would have played
-    const waitMs = (when - ctx.currentTime) * 1000;
-    await new Promise((res) => setTimeout(res, waitMs));
-  }, [initializeAudioContext, masterGainNode, metronomeVolume, bpm, scheduleMetronomeClick]);
-
   // Start Recording
   const startRecording = useCallback(async (trackId) => {
     try {
@@ -500,7 +476,7 @@ export const useAudioEngine = () => {
           if (clip.buffer) {
             const playOffset = Math.max(0, fromTime - clip.startTime);
             const whenToStart = Math.max(now, now + clipStartTime);
-            playAudioBuffer(clip.buffer, playOffset, whenToStart, (clip.volume || 70) / 100, clip.trackId);
+            playAudioBuffer(clip.buffer, playOffset, whenToStart, 0.7, clip.trackId);
           }
         } catch (error) {
           console.error('Error playing uploaded clip:', clip.id, error);
@@ -679,9 +655,6 @@ export const useAudioEngine = () => {
     // Metronome controls
     setMetronomeEnabled,
     setMetronomeVolume: updateMetronomeVolume,
-
-    // Count-in action
-    playCountIn,
 
     // Clip management
     getTrackClips,

@@ -206,6 +206,13 @@ const AdvancedChannelStrip = ({
                 Comp
               </TabsTrigger>
               <TabsTrigger 
+                value="automation"
+                className="flex-1 data-[state=active]:bg-[#ff4500] data-[state=active]:text-white"
+              >
+                <TrendingUp className="w-4 h-4 mr-1" />
+                Auto
+              </TabsTrigger>
+              <TabsTrigger 
                 value="analyzer"
                 className="flex-1 data-[state=active]:bg-[#ff4500] data-[state=active]:text-white"
               >

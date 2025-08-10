@@ -39,6 +39,7 @@ const AdvancedChannelStrip = ({
   const [eqEnabled, setEQEnabled] = useState(true);
   const [compEnabled, setCompEnabled] = useState(true);
   const [spectrumEnabled, setSpectrumEnabled] = useState(true);
+  const [automationVisible, setAutomationVisible] = useState(false);
   
   const volume = typeof track.volume === 'number' ? track.volume : 75;
   const pan = typeof track.pan === 'number' ? track.pan : 0;

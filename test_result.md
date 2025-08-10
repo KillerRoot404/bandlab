@@ -665,7 +665,7 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
@@ -673,6 +673,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ POST /api/auth/login - Fixed ObjectId serialization issue by removing _id field from response. Login now works correctly with proper authentication."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE RE-VERIFICATION COMPLETED (2025-01-09): User login API tested successfully with 100% pass rate. Properly authenticates users with username/password, returns JWT token and user data. ObjectId serialization issues resolved. Authentication working perfectly for Studio integration."
 
   - task: "Get Current User Info API"
     implemented: true

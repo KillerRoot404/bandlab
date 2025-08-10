@@ -23,13 +23,14 @@ import SampleBrowser from '../components/SampleBrowser';
 import AuthModal from '../components/AuthModal';
 import AudioActivationPrompt from '../components/AudioActivationPrompt';
 import Mixer from '../components/Mixer';
+import AdvancedMixer from '../components/advanced/AdvancedMixer';
 import {
   Play, Pause, Square, RotateCcw, Volume2, VolumeX, Mic, Piano, Headphones,
   Settings, Save, Share2, Plus, Trash2, SkipBack, SkipForward, Repeat, Shuffle,
   Users, Upload, Download, MessageSquare, Clock, Grid3X3, Music, Waves, Zap,
   Filter, Activity, MonitorSpeaker, Mic2, Target, Volume1, Copy, Edit3, MoreHorizontal,
   LogIn, User, Maximize2, Minimize2, Sliders, FileAudio, Layers3, AlertCircle,
-  Menu, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown
+  Menu, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 const Studio = () => {

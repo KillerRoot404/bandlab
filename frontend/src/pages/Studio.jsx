@@ -778,17 +778,17 @@ const Studio = () => {
             size="sm"
             className="text-gray-400 hover:text-white text-xs"
           >
-            {advancedMixerMode ? (
-              <>
-                <ToggleLeft className="w-4 h-4 mr-1" />
-                Switch to Simple
-              </>
-            ) : (
-              <>
-                <ToggleRight className="w-4 h-4 mr-1" />
-                Switch to Advanced
-              </>
-            )}
+            {(() => {
+              // Estrutura estável para evitar diffs problemáticos do DOM
+              const Icon = advancedMixerMode ? ToggleLeft : ToggleRight;
+              const label = advancedMixerMode ? 'Switch to Simple' : 'Switch to Advanced';
+              return (
+                <span className="inline-flex items-center" key={advancedMixerMode ? 'simple' : 'advanced'}>
+                  <Icon className="w-4 h-4 mr-1" />
+                  {label}
+                </span>
+              );
+            })()}
           </Button>
         </div>
 

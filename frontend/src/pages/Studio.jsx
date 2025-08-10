@@ -169,6 +169,9 @@ const Studio = () => {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridDivision, setGridDivision] = useState('1/4');
   const [countInEnabled, setCountInEnabled] = useState(false);
+  
+  // Advanced Mixer State
+  const [advancedMixerMode, setAdvancedMixerMode] = useState(false);
 
   // Live Export hook
   const { exportProject, isExporting, progress: exportProgress } = useLiveExport(

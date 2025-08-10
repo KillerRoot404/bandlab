@@ -71,6 +71,7 @@ const Studio = () => {
     // Metronome API
     setMetronomeEnabled: engineSetMetronomeEnabled,
     setMetronomeVolume: engineSetMetronomeVolume,
+    playCountIn,
     masterLevel,
     trackLevels,
   } = useAudioEngine();
@@ -168,6 +169,8 @@ const Studio = () => {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridDivision, setGridDivision] = useState('1/4');
   const [countInEnabled, setCountInEnabled] = useState(false);
+  const [countInBars, setCountInBars] = useState(1); // 1 or 2 bars
+  const [countInActive, setCountInActive] = useState(false); // LED state
 
   // Live Export hook
   const { exportProject, isExporting, progress: exportProgress } = useLiveExport(
@@ -307,10 +310,12 @@ const Studio = () => {
       const canPlayAudio = await checkAudioActivation();
       if (!canPlayAudio) return;
       try {
-        // Count-in visual e simples (placeholder de 1 compasso)
+        // Count-in com seletor de compassos e som audível (mesmo com metrônomo OFF)
         if (countInEnabled) {
-          const beatMs = (60 / Math.max(1, bpm)) * 1000;
-          await new Promise((res) => setTimeout(res, beatMs * 4));
+          setCountInActive(true);
+          const beatsPerBar = parseInt((timeSignature || '4/4').split('/')[0], 10) || 4;
+          await playCountIn({ bars: countInBars, beatsPerBar });
+          setCountInActive(false);
         }
         await startRecording(selectedTrack);
         setRecordingTrack(selectedTrack);
@@ -318,6 +323,7 @@ const Studio = () => {
         toast({ title: 'Gravação Iniciada', description: `Gravando em ${ (currentProject?.tracks || []).find(t => t.id === selectedTrack)?.name || 'Track' }` });
       } catch (error) {
         console.error('Recording error:', error);
+        setCountInActive(false);
         if (error.message && error.message.includes('suspended')) setShowAudioActivationPrompt(true);
         else toast({ title: 'Erro de Gravação', description: 'Não foi possível iniciar a gravação. Verifique as permissões do microfone.', variant: 'destructive' });
       }
@@ -545,6 +551,21 @@ const Studio = () => {
           <div className="hidden sm:flex items-center space-x-2">
             <span className="text-sm text-gray-400">Count-in</span>
             <Switch checked={countInEnabled} onCheckedChange={setCountInEnabled} />
+            {/* Bars selector */}
+            <div className="ml-2 flex items-center bg-[#1a1a1b] border border-gray-700 rounded overflow-hidden">
+              <button
+                className={`px-2 py-1 text-xs ${countInBars === 1 ? 'bg-[#ff4500] text-white' : 'text-gray-300 hover:bg-[#333338]'}`}
+                onClick={() => setCountInBars(1)}
+                title="1 compasso"
+              >1 bar</button>
+              <button
+                className={`px-2 py-1 text-xs border-l border-gray-700 ${countInBars === 2 ? 'bg-[#ff4500] text-white' : 'text-gray-300 hover:bg-[#333338]'}`}
+                onClick={() => setCountInBars(2)}
+                title="2 compassos"
+              >2 bars</button>
+            </div>
+            {/* LED */}
+            <div className={`ml-2 w-2.5 h-2.5 rounded-full ${countInActive ? 'bg-[#ff4500] animate-pulse' : 'bg-gray-600'}`} title={countInActive ? 'Count-in ativo' : 'Count-in'} />
           </div>
 
           {/* Metronome control with volume */}

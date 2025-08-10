@@ -8,10 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import AdvancedEQ from './AdvancedEQ';
 import SpectrumAnalyzer from './SpectrumAnalyzer';
 import AdvancedCompressor from './AdvancedCompressor';
+import AutomationLane from './AutomationLane';
 import { 
   Volume2, VolumeX, Mic, Settings, Activity, Sliders,
   ChevronUp, ChevronDown, MoreHorizontal, Copy, Trash2,
-  Send, ArrowRight, Power, Monitor, Headphones
+  Send, ArrowRight, Power, Monitor, Headphones, TrendingUp
 } from 'lucide-react';
 
 const AdvancedChannelStrip = ({

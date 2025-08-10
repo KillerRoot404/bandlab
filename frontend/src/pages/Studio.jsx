@@ -876,6 +876,11 @@ const Studio = () => {
         </div>
       )}
 
+      {/* Feature Showcase */}
+      {showFeatureShowcase && (
+        <FeatureShowcase onClose={() => setShowFeatureShowcase(false)} />
+      )}
+
       <AudioActivationPrompt isVisible={showAudioActivationPrompt} onActivate={handleAudioActivation} onDismiss={handleDismissAudioPrompt} title="Ativar Áudio" message="Clique para habilitar reprodução de áudio para esta sessão" />
     </div>
   );

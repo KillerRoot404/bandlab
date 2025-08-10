@@ -174,8 +174,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Verify backend endpoints respond correctly and DB writes succeed"
-    - "Confirm CORS allows frontend origin"
+    - "Backend testing completed successfully"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

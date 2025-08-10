@@ -22,6 +22,7 @@ import EffectsRack from '../components/EffectsRack';
 import SampleBrowser from '../components/SampleBrowser';
 import AuthModal from '../components/AuthModal';
 import AudioActivationPrompt from '../components/AudioActivationPrompt';
+import FeatureShowcase from '../components/FeatureShowcase';
 import Mixer from '../components/Mixer';
 import AdvancedMixer from '../components/advanced/AdvancedMixer';
 import {
